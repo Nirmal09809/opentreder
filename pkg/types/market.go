@@ -106,9 +106,6 @@ type Order struct {
 	Side            OrderSide       `json:"side" db:"side"`
 	Type            OrderType       `json:"type" db:"type"`
 	Status          OrderStatus     `json:"status" db:"status"`
-	Side            OrderSide       `json:"side" db:"side"`
-	Type            OrderType       `json:"type" db:"type"`
-	Status          OrderStatus     `json:"status" db:"status"`
 	Price           decimal.Decimal `json:"price" db:"price"`
 	StopPrice       decimal.Decimal `json:"stop_price" db:"stop_price"`
 	Quantity        decimal.Decimal `json:"quantity" db:"quantity"`

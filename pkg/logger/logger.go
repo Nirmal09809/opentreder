@@ -11,7 +11,9 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/sirupsen/logrus"
+	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Logger struct {
@@ -62,7 +64,6 @@ func New(config *LoggerConfig) *Logger {
 			EnableConsoleLog: true,
 			EnableFileLog:    false,
 			TimestampFormat:  time.RFC3339,
-			ReportCaller:     true,
 		}
 	}
 
@@ -70,7 +71,6 @@ func New(config *LoggerConfig) *Logger {
 	case "json":
 		logger.SetFormatter(&logrus.JSONFormatter{
 			TimestampFormat: config.TimestampFormat,
-			ReportCaller:    config.ReportCaller,
 			CallerPrettyfier: func(r *runtime.Frame) (string, string) {
 				return "", fmt.Sprintf("%s:%d", filepath.Base(r.File), r.Line)
 			},
@@ -86,18 +86,15 @@ func New(config *LoggerConfig) *Logger {
 		logger.SetFormatter(&logrus.TextFormatter{
 			TimestampFormat: config.TimestampFormat,
 			FullTimestamp:   true,
-			ReportCaller:    config.ReportCaller,
 			CallerPrettyfier: func(r *runtime.Frame) (string, string) {
 				return "", fmt.Sprintf("%s:%d", filepath.Base(r.File), r.Line)
 			},
 			DisableColors: false,
-			ColorsEnabled: true,
 		})
 	default:
 		logger.SetFormatter(&logrus.TextFormatter{
 			TimestampFormat: config.TimestampFormat,
 			FullTimestamp:   true,
-			ReportCaller:    config.ReportCaller,
 		})
 	}
 
@@ -147,7 +144,6 @@ func Default() *Logger {
 			EnableConsoleLog: true,
 			EnableFileLog:    false,
 			TimestampFormat:  time.RFC3339,
-			ReportCaller:     true,
 		})
 	})
 	return defaultLogger
@@ -352,13 +348,11 @@ func (l *Logger) SetFormat(format string) {
 	case "json":
 		l.Logger.SetFormatter(&logrus.JSONFormatter{
 			TimestampFormat: time.RFC3339,
-			ReportCaller:    true,
 		})
 	case "text", "pretty":
 		l.Logger.SetFormatter(&logrus.TextFormatter{
 			TimestampFormat: time.RFC3339,
 			FullTimestamp:   true,
-			ReportCaller:    true,
 		})
 	}
 }

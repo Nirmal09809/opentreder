@@ -965,43 +965,41 @@ func trainModels() error {
 }
 
 func showStatus() error {
-	fmt.Println("""
-╔══════════════════════════════════════════════════════════════╗
-║                    OpenTrader Status                          ║
-╠══════════════════════════════════════════════════════════════╣
-║  Version:          1.0.0                                      ║
-║  Environment:      development                                ║
-║  Uptime:           2h 34m 12s                                  ║
-╠══════════════════════════════════════════════════════════════╣
-║  Components                                                     ║
-╠══════════════════════════════════════════════════════════════╣
-║  Engine:          🟢 Running                                  ║
-║  Database:        🟢 Connected (SQLite)                       ║
-║  Cache:           🟢 Connected (Redis)                       ║
-║  AI Brain:        🟡 Disabled                                 ║
-║  WebSocket:       🟢 Connected                                ║
-╠══════════════════════════════════════════════════════════════╣
-║  Exchanges                                                     ║
-╠══════════════════════════════════════════════════════════════╣
-║  Binance:         🟢 Connected (12ms latency)                ║
-║  Bybit:           🟢 Connected (23ms latency)                ║
-╠══════════════════════════════════════════════════════════════╣
-║  Active Strategies                                            ║
-╠══════════════════════════════════════════════════════════════╣
-║  Grid Strategy:    🟢 Active  (5 positions)                 ║
-║  DCA Strategy:      🟢 Active  (3 positions)                 ║
-║  Trend Strategy:    ⏸️ Disabled                               ║
-╠══════════════════════════════════════════════════════════════╣
-║  System Resources                                             ║
-╠══════════════════════════════════════════════════════════════╣
-""")
+	fmt.Println("+================================================================+")
+	fmt.Println("|                    OpenTrader Status                           |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Version:          1.0.0                                      |")
+	fmt.Println("|  Environment:      development                                |")
+	fmt.Println("|  Uptime:           2h 34m 12s                                  |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Components                                                     |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Engine:          [OK] Running                                  |")
+	fmt.Println("|  Database:        [OK] Connected (SQLite)                       |")
+	fmt.Println("|  Cache:           [OK] Connected (Redis)                       |")
+	fmt.Println("|  AI Brain:        [--] Disabled                                 |")
+	fmt.Println("|  WebSocket:       [OK] Connected                                |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Exchanges                                                     |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Binance:         [OK] Connected (12ms latency)                |")
+	fmt.Println("|  Bybit:           [OK] Connected (23ms latency)                |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Active Strategies                                            |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  Grid Strategy:    [OK] Active  (5 positions)                  |")
+	fmt.Println("|  DCA Strategy:      [OK] Active  (3 positions)                  |")
+	fmt.Println("|  Trend Strategy:    [--] Disabled                               |")
+	fmt.Println("+================================================================+")
+	fmt.Println("|  System Resources                                             |")
+	fmt.Println("+================================================================+")
 
 	var m runtime.MemStats
 	runtime.ReadMemStats(&m)
-	fmt.Printf("║  Memory Usage:      %.2f MB                               ║\n", float64(m.Alloc)/1024/1024)
-	fmt.Println("║  Goroutines:        127                                    ║")
-	fmt.Println("║  CPU Cores:         8                                      ║")
-	fmt.Println("╚══════════════════════════════════════════════════════════════╝")
+	fmt.Printf("|  Memory Usage:      %.2f MB                               |\n", float64(m.Alloc)/1024/1024)
+	fmt.Println("|  Goroutines:        127                                    |")
+	fmt.Println("|  CPU Cores:         8                                      |")
+	fmt.Println("+================================================================+")
 
 	return nil
 }
