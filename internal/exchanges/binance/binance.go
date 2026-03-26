@@ -477,10 +477,10 @@ func (c *Client) GetOpenOrders(ctx context.Context, symbol string) ([]*types.Ord
 	return orders, nil
 }
 
-func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID int64) error {
+func (c *Client) CancelOrder(ctx context.Context, symbol string, orderID string) error {
 	params := map[string]string{
 		"symbol":  symbol,
-		"orderId": strconv.FormatInt(orderID, 10),
+		"orderId": orderID,
 	}
 
 	_, err := c.request(ctx, "DELETE", "/api/v3/order", params, true)
@@ -943,17 +943,17 @@ func (c *Client) request(ctx context.Context, method, endpoint string, params ma
 	}
 
 	var body io.Reader
-	url := c.baseURL + endpoint
+	urlPath := c.baseURL + endpoint
 
 	if method == "GET" || method == "DELETE" {
 		if queryString != "" {
-			url += "?" + queryString
+			urlPath += "?" + queryString
 		}
 	} else {
 		body = strings.NewReader(queryString)
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, urlPath, body)
 	if err != nil {
 		return nil, err
 	}
@@ -974,9 +974,9 @@ func (c *Client) request(ctx context.Context, method, endpoint string, params ma
 		signedParams += fmt.Sprintf("timestamp=%d&recvWindow=%d", timestamp, recvWindow)
 
 		signature := c.sign(signedParams)
-		url += "?" + signedParams + "&signature=" + signature
+		urlPath += "?" + signedParams + "&signature=" + signature
 
-		req.URL, _ = url.Parse(url)
+		req.URL, _ = url.Parse(urlPath)
 		req.Header.Set("X-MBX-APIKEY", c.apiKey)
 	}
 

@@ -200,7 +200,7 @@ func (s *Server) run() {
 				"total_clients", len(s.clients),
 			)
 
-			s.sendToClient(client, &Message{
+			client.sendToClient(client, &Message{
 				Type:      "system",
 				Action:    "connected",
 				Timestamp: time.Now(),

@@ -288,7 +288,7 @@ func (c *Client) GetOrder(ctx context.Context, orderID string) (*types.Order, er
 	json.Unmarshal(data, &order)
 
 	return &types.Order{
-		ID:             uuid.MustParse(order.ID).String(),
+		ID:             uuid.MustParse(order.ID),
 		Symbol:         order.ProductID,
 		Side:           types.OrderSide(order.Side),
 		Type:           types.OrderType(order.Type),
@@ -313,7 +313,7 @@ func (c *Client) GetOpenOrders(ctx context.Context) ([]*types.Order, error) {
 	result := make([]*types.Order, len(orders))
 	for i, o := range orders {
 		result[i] = &types.Order{
-			ID:             uuid.MustParse(o.ID).String(),
+			ID:             uuid.MustParse(o.ID),
 			Symbol:         o.ProductID,
 			Side:           types.OrderSide(o.Side),
 			Type:           types.OrderType(o.Type),
@@ -357,7 +357,7 @@ func (c *Client) GetFills(ctx context.Context, orderID string) ([]*types.Trade, 
 	trades := make([]*types.Trade, len(fills))
 	for i, f := range fills {
 		trades[i] = &types.Trade{
-			ID:        uuid.MustParse(f.TradeID).String(),
+			ID:        uuid.MustParse(f.TradeID),
 			Symbol:    f.ProductID,
 			Side:      types.OrderSide(f.Side),
 			Price:     parseDecimal(f.Price),
@@ -492,7 +492,7 @@ func (c *Client) GetTrades(ctx context.Context, productID string) ([]*types.Trad
 	trades := make([]*types.Trade, len(rawTrades))
 	for i, t := range rawTrades {
 		trades[i] = &types.Trade{
-			ID:        t.ID,
+			ID:        uuid.MustParse(t.ID),
 			Symbol:    productID,
 			Side:      types.OrderSide(t.Side),
 			Price:     parseDecimal(t.Price),
@@ -508,7 +508,7 @@ func (c *Client) request(ctx context.Context, method, endpoint string, params ma
 	c.rateLimiter.Wait()
 
 	var body io.Reader
-	url := c.baseURL + endpoint
+	urlPath := c.baseURL + endpoint
 
 	if len(params) > 0 {
 		values := url.Values{}
@@ -517,13 +517,13 @@ func (c *Client) request(ctx context.Context, method, endpoint string, params ma
 		}
 
 		if method == "GET" {
-			url += "?" + values.Encode()
+			urlPath += "?" + values.Encode()
 		} else {
 			body = strings.NewReader(values.Encode())
 		}
 	}
 
-	req, err := http.NewRequestWithContext(ctx, method, url, body)
+	req, err := http.NewRequestWithContext(ctx, method, urlPath, body)
 	if err != nil {
 		return err
 	}

@@ -8,7 +8,6 @@ import (
 	"google.golang.org/grpc/status"
 	"google.golang.org/protobuf/types/known/emptypb"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"github.com/shopspring/decimal"
 )
 
 type UnimplementedTradingServiceServer struct{}

@@ -316,13 +316,19 @@ type RiskLimit struct {
 }
 
 type Account struct {
-	ID            uuid.UUID          `json:"id" db:"id"`
-	Exchange      Exchange           `json:"exchange" db:"exchange"`
-	AccountType   string             `json:"account_type" db:"account_type"`
-	Balances      map[string]*Balance `json:"balances,omitempty" db:"-"`
-	Enabled       bool               `json:"enabled" db:"enabled"`
-	CreatedAt     time.Time          `json:"created_at" db:"created_at"`
-	UpdatedAt     time.Time          `json:"updated_at" db:"updated_at"`
+	ID              uuid.UUID          `json:"id" db:"id"`
+	AccountID       string             `json:"account_id" db:"account_id"`
+	Exchange        Exchange           `json:"exchange" db:"exchange"`
+	AccountType     string             `json:"account_type" db:"account_type"`
+	Currency        string             `json:"currency" db:"currency"`
+	BuyingPower     decimal.Decimal    `json:"buying_power" db:"buying_power"`
+	Cash            decimal.Decimal    `json:"cash" db:"cash"`
+	PortfolioValue  decimal.Decimal    `json:"portfolio_value" db:"portfolio_value"`
+	TradingEnabled  bool               `json:"trading_enabled" db:"trading_enabled"`
+	Balances        map[string]*Balance `json:"balances,omitempty" db:"-"`
+	Enabled         bool               `json:"enabled" db:"enabled"`
+	CreatedAt       time.Time          `json:"created_at" db:"created_at"`
+	UpdatedAt       time.Time          `json:"updated_at" db:"updated_at"`
 }
 
 type PnLReport struct {
