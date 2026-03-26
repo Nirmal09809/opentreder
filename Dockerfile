@@ -5,8 +5,8 @@ WORKDIR /app
 
 RUN apk add --no-cache git ca-certificates tzdata
 
-COPY go.mod go.sum ./
-RUN go mod download
+COPY go.mod ./
+RUN go mod download && touch go.sum
 
 COPY . .
 
