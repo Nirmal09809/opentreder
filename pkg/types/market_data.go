@@ -2,6 +2,8 @@ package types
 
 import (
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 type Quote struct {
@@ -81,7 +83,7 @@ type OptionQuote struct {
 	Gamma         decimal.Decimal `json:"gamma"`
 	Theta         decimal.Decimal `json:"theta"`
 	Vega          decimal.Decimal `json:"vega"`
-	rho           decimal.Decimal `json:"rho"`
+	Rho           decimal.Decimal `json:"rho"`
 	Timestamp     time.Time       `json:"timestamp"`
 }
 
