@@ -15,7 +15,7 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/jung-kurt/gofpdf v1.16.2
-	github.com/go-echarts/go-echarts/v2 v2.5.8
+	github.com/go-echarts/go-echarts/v2 v2.7.1
 	github.com/gorilla/websocket v1.5.1
 	github.com/grpc/grpc-go v1.61.1
 	github.com/pterm/pterm v0.12.50
