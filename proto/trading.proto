@@ -1,0 +1,530 @@
+syntax = "proto3";
+
+package opentreder.api.v1;
+
+option go_package = "github.com/opentreder/opentreder/internal/api/grpc/pb";
+
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/empty.proto";
+
+service TradingService {
+    rpc PlaceOrder(PlaceOrderRequest) returns (PlaceOrderResponse) {
+        option (google.api.http) = {
+            post: "/v1/orders"
+            body: "*"
+        };
+    }
+    rpc CancelOrder(CancelOrderRequest) returns (CancelOrderResponse);
+    rpc GetOrder(GetOrderRequest) returns (OrderResponse);
+    rpc ListOrders(ListOrdersRequest) returns (ListOrdersResponse);
+    rpc GetPosition(GetPositionRequest) returns (PositionResponse);
+    rpc ListPositions(ListPositionsRequest) returns (ListPositionsResponse);
+    rpc GetPortfolio(GetPortfolioRequest) returns (PortfolioResponse);
+    rpc GetAccount(GetAccountRequest) returns (AccountResponse);
+}
+
+service MarketDataService {
+    rpc GetQuote(GetQuoteRequest) returns (QuoteResponse);
+    rpc GetHistoricalBars(GetHistoricalBarsRequest) returns (HistoricalBarsResponse);
+    rpc GetHistoricalTicks(GetHistoricalTicksRequest) returns (HistoricalTicksResponse);
+    rpc StreamQuotes(StreamQuotesRequest) returns (stream QuoteResponse);
+    rpc StreamBars(StreamBarsRequest) returns (stream BarResponse);
+}
+
+service StrategyService {
+    rpc CreateStrategy(CreateStrategyRequest) returns (StrategyResponse);
+    rpc UpdateStrategy(UpdateStrategyRequest) returns (StrategyResponse);
+    rpc DeleteStrategy(DeleteStrategyRequest) returns (google.protobuf.Empty);
+    rpc GetStrategy(GetStrategyRequest) returns (StrategyResponse);
+    rpc ListStrategies(ListStrategiesRequest) returns (ListStrategiesResponse);
+    rpc StartStrategy(StartStrategyRequest) returns (StartStrategyResponse);
+    rpc StopStrategy(StopStrategyRequest) returns (StopStrategyResponse);
+}
+
+service AnalyticsService {
+    rpc GetPerformanceMetrics(GetPerformanceRequest) returns (PerformanceMetricsResponse);
+    rpc GetTradeHistory(GetTradeHistoryRequest) returns (TradeHistoryResponse);
+    rpc GetEquityCurve(GetEquityCurveRequest) returns (EquityCurveResponse);
+    rpc GetRiskMetrics(GetRiskMetricsRequest) returns (RiskMetricsResponse);
+}
+
+service AIBrainService {
+    rpc AnalyzeMarket(AnalyzeMarketRequest) returns (AnalyzeMarketResponse);
+    rpc GenerateSignals(GenerateSignalsRequest) returns (GenerateSignalsResponse);
+    rpc PredictPrice(PredictPriceRequest) returns (PredictPriceResponse);
+    rpc OptimizeStrategy(OptimizeStrategyRequest) returns (OptimizeStrategyResponse);
+}
+
+service BacktestService {
+    rpc RunBacktest(RunBacktestRequest) returns (RunBacktestResponse);
+    rpc GetBacktestResult(GetBacktestResultRequest) returns (BacktestResultResponse);
+    rpc ListBacktests(ListBacktestsRequest) returns (ListBacktestsResponse);
+    rpc OptimizeStrategyParameters(OptimizeStrategyRequest) returns (OptimizationResultResponse);
+}
+
+message PlaceOrderRequest {
+    string symbol = 1;
+    string side = 2;
+    string order_type = 3;
+    string quantity = 4;
+    string price = 5;
+    string stop_price = 6;
+    string time_in_force = 7;
+    bool reduce_only = 8;
+    string exchange = 9;
+}
+
+message PlaceOrderResponse {
+    string order_id = 1;
+    string status = 2;
+    string message = 3;
+}
+
+message CancelOrderRequest {
+    string order_id = 1;
+    string exchange = 2;
+}
+
+message CancelOrderResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetOrderRequest {
+    string order_id = 1;
+    string exchange = 2;
+}
+
+message OrderResponse {
+    string order_id = 1;
+    string symbol = 2;
+    string side = 3;
+    string order_type = 4;
+    string status = 5;
+    string filled_quantity = 6;
+    string avg_fill_price = 7;
+    string price = 8;
+    string stop_price = 9;
+    google.protobuf.Timestamp created_at = 10;
+    google.protobuf.Timestamp updated_at = 11;
+}
+
+message ListOrdersRequest {
+    string symbol = 1;
+    string status = 2;
+    int32 limit = 3;
+    string exchange = 4;
+}
+
+message ListOrdersResponse {
+    repeated OrderResponse orders = 1;
+}
+
+message GetPositionRequest {
+    string symbol = 1;
+    string exchange = 2;
+}
+
+message PositionResponse {
+    string symbol = 1;
+    string exchange = 2;
+    string quantity = 3;
+    string avg_entry_price = 4;
+    string unrealized_pnl = 5;
+    string realized_pnl = 6;
+    string side = 7;
+    google.protobuf.Timestamp opened_at = 8;
+}
+
+message ListPositionsRequest {
+    string exchange = 1;
+}
+
+message ListPositionsResponse {
+    repeated PositionResponse positions = 1;
+}
+
+message GetPortfolioRequest {
+    string exchange = 1;
+}
+
+message PortfolioResponse {
+    string total_equity = 1;
+    string cash = 2;
+    string buying_power = 3;
+    string portfolio_value = 4;
+    string day_pnl = 5;
+    string total_pnl = 6;
+    repeated PositionResponse positions = 7;
+}
+
+message GetAccountRequest {
+    string exchange = 1;
+}
+
+message AccountResponse {
+    string account_id = 1;
+    string exchange = 2;
+    string currency = 3;
+    string buying_power = 4;
+    string cash = 5;
+    string portfolio_value = 6;
+    bool pattern_day_trader = 7;
+    bool trading_enabled = 8;
+}
+
+message GetQuoteRequest {
+    string symbol = 1;
+    string exchange = 2;
+}
+
+message QuoteResponse {
+    string symbol = 1;
+    string exchange = 2;
+    string bid = 3;
+    string ask = 4;
+    string bid_size = 5;
+    string ask_size = 6;
+    google.protobuf.Timestamp timestamp = 7;
+}
+
+message BarResponse {
+    string symbol = 1;
+    string exchange = 2;
+    string open = 3;
+    string high = 4;
+    string low = 5;
+    string close = 6;
+    string volume = 7;
+    int32 trades = 8;
+    google.protobuf.Timestamp timestamp = 9;
+}
+
+message GetHistoricalBarsRequest {
+    string symbol = 1;
+    string exchange = 2;
+    string interval = 3;
+    google.protobuf.Timestamp start = 4;
+    google.protobuf.Timestamp end = 5;
+    int32 limit = 6;
+}
+
+message HistoricalBarsResponse {
+    repeated BarResponse bars = 1;
+}
+
+message GetHistoricalTicksRequest {
+    string symbol = 1;
+    string exchange = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    int32 limit = 5;
+}
+
+message HistoricalTicksResponse {
+    repeated TickResponse ticks = 1;
+}
+
+message TickResponse {
+    string symbol = 1;
+    string exchange = 2;
+    string price = 3;
+    string size = 4;
+    string side = 5;
+    google.protobuf.Timestamp timestamp = 6;
+}
+
+message StreamQuotesRequest {
+    repeated string symbols = 1;
+    string exchange = 2;
+}
+
+message StreamBarsRequest {
+    repeated string symbols = 1;
+    string exchange = 2;
+    string interval = 3;
+}
+
+message CreateStrategyRequest {
+    string name = 1;
+    string type = 2;
+    map<string, string> parameters = 3;
+    repeated string symbols = 4;
+    string exchange = 5;
+    bool auto_start = 6;
+}
+
+message UpdateStrategyRequest {
+    string strategy_id = 1;
+    map<string, string> parameters = 2;
+    bool enabled = 3;
+}
+
+message DeleteStrategyRequest {
+    string strategy_id = 1;
+}
+
+message GetStrategyRequest {
+    string strategy_id = 1;
+}
+
+message StrategyResponse {
+    string strategy_id = 1;
+    string name = 2;
+    string type = 3;
+    map<string, string> parameters = 4;
+    repeated string symbols = 5;
+    string exchange = 6;
+    bool enabled = 7;
+    string status = 8;
+    google.protobuf.Timestamp created_at = 9;
+    google.protobuf.Timestamp updated_at = 10;
+}
+
+message ListStrategiesRequest {
+    bool enabled_only = 1;
+    string exchange = 2;
+}
+
+message ListStrategiesResponse {
+    repeated StrategyResponse strategies = 1;
+}
+
+message StartStrategyRequest {
+    string strategy_id = 1;
+}
+
+message StartStrategyResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message StopStrategyRequest {
+    string strategy_id = 1;
+}
+
+message StopStrategyResponse {
+    bool success = 1;
+    string message = 2;
+}
+
+message GetPerformanceRequest {
+    string strategy_id = 1;
+    string exchange = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+}
+
+message PerformanceMetricsResponse {
+    string total_return = 1;
+    string annualized_return = 2;
+    string volatility = 3;
+    string sharpe_ratio = 4;
+    string sortino_ratio = 5;
+    string calmar_ratio = 6;
+    string max_drawdown = 7;
+    int64 max_drawdown_duration_seconds = 8;
+    string win_rate = 9;
+    string profit_factor = 10;
+    int32 total_trades = 11;
+    int32 winning_trades = 12;
+    int32 losing_trades = 13;
+    int32 max_consecutive_wins = 14;
+    int32 max_consecutive_losses = 15;
+}
+
+message GetTradeHistoryRequest {
+    string strategy_id = 1;
+    string exchange = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    int32 limit = 5;
+}
+
+message TradeHistoryResponse {
+    repeated TradeResponse trades = 1;
+}
+
+message TradeResponse {
+    string trade_id = 1;
+    string order_id = 2;
+    string symbol = 3;
+    string exchange = 4;
+    string side = 5;
+    string quantity = 6;
+    string price = 7;
+    string commission = 8;
+    string pnl = 9;
+    google.protobuf.Timestamp executed_at = 10;
+}
+
+message GetEquityCurveRequest {
+    string strategy_id = 1;
+    string exchange = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    string interval = 5;
+}
+
+message EquityCurveResponse {
+    repeated EquityPointResponse points = 1;
+}
+
+message EquityPointResponse {
+    google.protobuf.Timestamp timestamp = 1;
+    string equity = 2;
+    string drawdown = 3;
+    string daily_return = 4;
+}
+
+message GetRiskMetricsRequest {
+    string strategy_id = 1;
+    string exchange = 2;
+}
+
+message RiskMetricsResponse {
+    string var_95 = 1;
+    string var_99 = 2;
+    string cvar_95 = 3;
+    string cvar_99 = 4;
+    string max_leverage = 5;
+    string current_leverage = 6;
+    string exposure = 7;
+    string concentration_limit = 8;
+    string current_concentration = 9;
+}
+
+message AnalyzeMarketRequest {
+    string symbol = 1;
+    string exchange = 2;
+    string timeframe = 3;
+    map<string, string> options = 4;
+}
+
+message AnalyzeMarketResponse {
+    string symbol = 1;
+    string exchange = 2;
+    string trend = 3;
+    string sentiment = 4;
+    string recommendation = 5;
+    repeated string indicators = 6;
+    map<string, string> signals = 7;
+    string explanation = 8;
+}
+
+message GenerateSignalsRequest {
+    repeated string symbols = 1;
+    string exchange = 2;
+    string timeframe = 3;
+    string strategy = 4;
+}
+
+message GenerateSignalsResponse {
+    repeated SignalResponse signals = 1;
+}
+
+message SignalResponse {
+    string symbol = 1;
+    string side = 2;
+    string action = 3;
+    string confidence = 4;
+    string entry_price = 5;
+    string stop_loss = 6;
+    string take_profit = 7;
+    string rationale = 8;
+}
+
+message PredictPriceRequest {
+    string symbol = 1;
+    string exchange = 2;
+    string model = 3;
+    int32 horizon = 4;
+}
+
+message PredictPriceResponse {
+    string symbol = 1;
+    string current_price = 2;
+    repeated PricePoint prediction = 3;
+    string model = 4;
+    string confidence = 5;
+}
+
+message PricePoint {
+    google.protobuf.Timestamp timestamp = 1;
+    string price = 2;
+    string lower_bound = 3;
+    string upper_bound = 4;
+}
+
+message OptimizeStrategyRequest {
+    string strategy_id = 1;
+    string method = 2;
+    map<string, DoubleRange> parameter_ranges = 3;
+    int32 max_iterations = 4;
+}
+
+message DoubleRange {
+    double min = 1;
+    double max = 2;
+    double step = 3;
+}
+
+message OptimizeStrategyResponse {
+    string optimization_id = 1;
+    string status = 2;
+    int32 iterations_completed = 3;
+}
+
+message RunBacktestRequest {
+    string strategy_id = 1;
+    string exchange = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    double initial_capital = 5;
+    map<string, string> parameters = 6;
+}
+
+message RunBacktestResponse {
+    string backtest_id = 1;
+    string status = 2;
+}
+
+message GetBacktestResultRequest {
+    string backtest_id = 1;
+}
+
+message BacktestResultResponse {
+    string backtest_id = 1;
+    string status = 2;
+    PerformanceMetricsResponse metrics = 3;
+    string equity_curve = 4;
+    repeated TradeResponse trades = 5;
+    google.protobuf.Timestamp completed_at = 6;
+}
+
+message ListBacktestsRequest {
+    string strategy_id = 1;
+    int32 limit = 2;
+}
+
+message ListBacktestsResponse {
+    repeated BacktestSummaryResponse backtests = 1;
+}
+
+message BacktestSummaryResponse {
+    string backtest_id = 1;
+    string strategy_id = 2;
+    google.protobuf.Timestamp start = 3;
+    google.protobuf.Timestamp end = 4;
+    string status = 5;
+    string total_return = 6;
+}
+
+message OptimizationResultResponse {
+    string optimization_id = 1;
+    string status = 2;
+    map<string, string> best_parameters = 3;
+    double best_score = 4;
+    int32 iterations = 5;
+}

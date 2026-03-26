@@ -1,0 +1,287 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: opentreder
+  labels:
+    app: opentreder
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: opentreder-config
+  namespace: opentreder
+data:
+  config.yaml: |
+    app:
+      name: opentreder
+      env: production
+      log_level: info
+    server:
+      rest:
+        host: 0.0.0.0
+        port: 8080
+      websocket:
+        host: 0.0.0.0
+        port: 8081
+      grpc:
+        host: 0.0.0.0
+        port: 8082
+    database:
+      sqlite:
+        path: /data/opentreder.db
+      postgres:
+        enabled: true
+        host: postgres-svc
+        port: 5432
+        user: opentreder
+        password: ${POSTGRES_PASSWORD}
+        database: opentreder
+        sslmode: disable
+    redis:
+      host: redis-svc
+      port: 6379
+    exchanges:
+      binance:
+        enabled: true
+      bybit:
+        enabled: true
+    ai:
+      enabled: true
+      model: ensemble
+---
+apiVersion: v1
+kind: Secret
+metadata:
+  name: opentreder-secrets
+  namespace: opentreder
+type: Opaque
+stringData:
+  postgres-password: CHANGE_ME
+  redis-password: CHANGE_ME
+  binance-api-key: CHANGE_ME
+  binance-api-secret: CHANGE_ME
+  bybit-api-key: CHANGE_ME
+  bybit-api-secret: CHANGE_ME
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: opentreder
+  namespace: opentreder
+  labels:
+    app: opentreder
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: opentreder
+  template:
+    metadata:
+      labels:
+        app: opentreder
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+    spec:
+      serviceAccountName: opentreder
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      containers:
+        - name: opentreder
+          image: ghcr.io/opentreder/opentreder:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 8080
+              name: rest
+            - containerPort: 8081
+              name: websocket
+            - containerPort: 8082
+              name: grpc
+            - containerPort: 9090
+              name: metrics
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: postgres-password
+            - name: REDIS_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: redis-password
+            - name: BINANCE_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: binance-api-key
+            - name: BINANCE_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: binance-api-secret
+            - name: BYBIT_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: bybit-api-key
+            - name: BYBIT_API_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: opentreder-secrets
+                  key: bybit-api-secret
+          resources:
+            requests:
+              memory: "512Mi"
+              cpu: "250m"
+            limits:
+              memory: "2Gi"
+              cpu: "2000m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: config
+              mountPath: /app/config
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: opentreder-data
+        - name: config
+          configMap:
+            name: opentreder-config
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opentreder-service
+  namespace: opentreder
+spec:
+  type: ClusterIP
+  ports:
+    - port: 8080
+      targetPort: 8080
+      name: rest
+    - port: 8081
+      targetPort: 8081
+      name: websocket
+    - port: 8082
+      targetPort: 8082
+      name: grpc
+    - port: 9090
+      targetPort: 9090
+      name: metrics
+  selector:
+    app: opentreder
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opentreder-lb
+  namespace: opentreder
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 80
+      targetPort: 8080
+      name: rest
+    - port: 443
+      targetPort: 8080
+      name: rest-https
+  selector:
+    app: opentreder
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: opentreder-data
+  namespace: opentreder
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: opentreder
+  namespace: opentreder
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: opentreder-hpa
+  namespace: opentreder
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: opentreder
+  minReplicas: 2
+  maxReplicas: 10
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opentreder-ingress
+  namespace: opentreder
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+spec:
+  tls:
+    - hosts:
+        - api.opentreder.io
+      secretName: opentreder-tls
+  rules:
+    - host: api.opentreder.io
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opentreder-service
+                port:
+                  number: 8080
+---
+apiVersion: policy/v1
+kind: PodDisruptionBudget
+metadata:
+  name: opentreder-pdb
+  namespace: opentreder
+spec:
+  minAvailable: 1
+  selector:
+    matchLabels:
+      app: opentreder

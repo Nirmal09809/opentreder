@@ -1,0 +1,74 @@
+# .gitignore
+
+# Binaries
+opentreder
+opentreder.exe
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+
+# Test binary
+*.test
+
+# Output of go coverage tool
+*.out
+coverage.out
+coverage.html
+
+# Go workspace file
+go.work
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Data
+data/
+*.db
+*.db-journal
+*.sqlite
+
+# Logs
+logs/
+*.log
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Build
+bin/
+dist/
+build/
+
+# Temporary
+tmp/
+temp/
+*.tmp
+
+# Dependencies (if using vendor)
+# vendor/
+
+# Terraform
+*.tfstate
+*.tfstate.*
+.terraform/
+
+# Helm
+deploy/helm/charts/
+
+# Credentials
+*.pem
+*.key
+credentials.json
+secrets.yaml

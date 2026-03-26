@@ -1,0 +1,137 @@
+groups:
+  - name: opentreder_alerts
+    rules:
+      - alert: HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="opentreder"}[5m]) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High CPU usage detected"
+          description: "CPU usage is above 80% for more than 5 minutes"
+
+      - alert: HighMemoryUsage
+        expr: process_resident_memory_bytes{job="opentreder"} / process_max_memory_bytes{job="opentreder"} > 0.9
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High memory usage detected"
+          description: "Memory usage is above 90%"
+
+      - alert: HighErrorRate
+        expr: rate(http_requests_total{job="opentreder", status=~"5.."}[5m]) > 0.01
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High error rate detected"
+          description: "HTTP 5xx error rate is above 1%"
+
+      - alert: HighLatency
+        expr: histogram_quantile(0.95, rate(http_request_duration_seconds_bucket{job="opentreder"}[5m])) > 1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High API latency"
+          description: "95th percentile latency is above 1 second"
+
+      - alert: ServiceDown
+        expr: up{job="opentreder"} == 0
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "OpenTrader service is down"
+          description: "The OpenTrader service has been unreachable for 1 minute"
+
+      - alert: HighOrderLatency
+        expr: histogram_quantile(0.95, rate(order_latency_seconds_bucket[5m])) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High order execution latency"
+          description: "Order execution latency is above 500ms"
+
+      - alert: OrderFailures
+        expr: rate(orders_failed_total[5m]) / rate(orders_total[5m]) > 0.05
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High order failure rate"
+          description: "More than 5% of orders are failing"
+
+      - alert: HighDrawdown
+        expr: drawdown_percent > 20
+        for: 10m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High portfolio drawdown"
+          description: "Portfolio drawdown has exceeded 20%"
+
+      - alert: PositionLimitReached
+        expr: positions_count >= positions_limit
+        for: 1m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Position limit reached"
+          description: "Maximum number of concurrent positions reached"
+
+      - alert: APIQuotaWarning
+        expr: rate(api_rate_limit_remaining[5m]) < 0.1
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "API rate limit approaching"
+          description: "Exchange API rate limit is almost exhausted"
+
+      - alert: DatabaseConnectionErrors
+        expr: rate(database_connections_failed_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Database connection errors"
+          description: "Failed database connections detected"
+
+      - alert: RedisConnectionErrors
+        expr: rate(redis_connections_failed_total[5m]) > 0
+        for: 2m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Redis connection errors"
+          description: "Failed Redis connections detected"
+
+      - alert: StrategyErrors
+        expr: rate(strategy_errors_total[5m]) > 0
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Strategy execution errors"
+          description: "Errors detected in strategy execution"
+
+      - alert: MLModelStale
+        expr: time() - ml_model_last_update_timestamp > 3600
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "ML model is stale"
+          description: "ML model has not been updated in over 1 hour"
+
+      - alert: WebSocketDisconnections
+        expr: rate(websocket_disconnections_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High WebSocket disconnection rate"
+          description: "Multiple WebSocket disconnections detected"

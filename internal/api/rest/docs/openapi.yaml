@@ -1,0 +1,1165 @@
+openapi: 3.0.3
+info:
+  title: OpenTrader API
+  description: |
+    Enterprise-grade AI Trading Framework API
+    
+    ## Features
+    - Multi-exchange trading (Crypto, Stocks, Forex, Options)
+    - AI-powered market analysis
+    - Strategy management
+    - Real-time market data
+    - Backtesting and optimization
+  version: 1.0.0
+  contact:
+    name: OpenTrader Support
+    url: https://github.com/opentreder/opentreder
+  license:
+    name: Apache 2.0
+    url: https://www.apache.org/licenses/LICENSE-2.0
+
+servers:
+  - url: http://localhost:8080
+    description: Local development server
+  - url: https://api.opentreder.io/v1
+    description: Production server
+
+tags:
+  - name: Account
+    description: Account management endpoints
+  - name: Orders
+    description: Order management
+  - name: Positions
+    description: Position tracking
+  - name: Market Data
+    description: Real-time and historical market data
+  - name: Strategies
+    description: Trading strategy management
+  - name: AI
+    description: AI-powered analysis and predictions
+  - name: Backtest
+    description: Backtesting and optimization
+  - name: Analytics
+    description: Performance analytics
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [System]
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: healthy
+                  timestamp:
+                    type: string
+                    format: date-time
+
+  /v1/account:
+    get:
+      summary: Get account information
+      tags: [Account]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: exchange
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [binance, bybit, coinbase, alpaca, forexcom, tradier]
+      responses:
+        '200':
+          description: Account information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Account'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/orders:
+    get:
+      summary: List orders
+      tags: [Orders]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [open, filled, cancelled, pending]
+        - name: exchange
+          in: query
+          schema:
+            type: string
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: List of orders
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  orders:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Order'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      summary: Place new order
+      tags: [Orders]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PlaceOrderRequest'
+      responses:
+        '201':
+          description: Order placed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlaceOrderResponse'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /v1/orders/{orderId}:
+    get:
+      summary: Get order details
+      tags: [Orders]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Order'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    delete:
+      summary: Cancel order
+      tags: [Orders]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Order cancelled
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/positions:
+    get:
+      summary: List all positions
+      tags: [Positions]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: exchange
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of positions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  positions:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Position'
+
+  /v1/positions/{symbol}:
+    get:
+      summary: Get position for symbol
+      tags: [Positions]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: symbol
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Position details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Position'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /v1/market/quote:
+    get:
+      summary: Get quote
+      tags: [Market Data]
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+            default: binance
+      responses:
+        '200':
+          description: Quote data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Quote'
+
+  /v1/market/bars:
+    get:
+      summary: Get historical bars
+      tags: [Market Data]
+      parameters:
+        - name: symbol
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+        - name: interval
+          in: query
+          schema:
+            type: string
+            enum: [1m, 5m, 15m, 1h, 4h, 1d]
+            default: 1h
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 100
+      responses:
+        '200':
+          description: Historical bars
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  bars:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Bar'
+
+  /v1/strategies:
+    get:
+      summary: List strategies
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of strategies
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  strategies:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Strategy'
+
+    post:
+      summary: Create strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStrategyRequest'
+      responses:
+        '201':
+          description: Strategy created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+  /v1/strategies/{strategyId}:
+    get:
+      summary: Get strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+    put:
+      summary: Update strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStrategyRequest'
+      responses:
+        '200':
+          description: Strategy updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Strategy'
+
+    delete:
+      summary: Delete strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '204':
+          description: Strategy deleted
+
+  /v1/strategies/{strategyId}/start:
+    post:
+      summary: Start strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy started
+
+  /v1/strategies/{strategyId}/stop:
+    post:
+      summary: Stop strategy
+      tags: [Strategies]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategyId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Strategy stopped
+
+  /v1/ai/analyze:
+    post:
+      summary: Analyze market with AI
+      tags: [AI]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AnalyzeMarketRequest'
+      responses:
+        '200':
+          description: Analysis result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyzeMarketResponse'
+
+  /v1/ai/signals:
+    post:
+      summary: Generate trading signals
+      tags: [AI]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateSignalsRequest'
+      responses:
+        '200':
+          description: Trading signals
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerateSignalsResponse'
+
+  /v1/ai/predict:
+    post:
+      summary: Predict price with ML
+      tags: [AI]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PredictPriceRequest'
+      responses:
+        '200':
+          description: Price prediction
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PredictPriceResponse'
+
+  /v1/backtest:
+    post:
+      summary: Run backtest
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RunBacktestRequest'
+      responses:
+        '202':
+          description: Backtest started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  backtest_id:
+                    type: string
+
+  /v1/backtest/{backtestId}:
+    get:
+      summary: Get backtest result
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: backtestId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Backtest result
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BacktestResult'
+
+  /v1/backtest/optimize:
+    post:
+      summary: Optimize strategy parameters
+      tags: [Backtest]
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/OptimizeStrategyRequest'
+      responses:
+        '202':
+          description: Optimization started
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  optimization_id:
+                    type: string
+
+  /v1/analytics/performance:
+    get:
+      summary: Get performance metrics
+      tags: [Analytics]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: query
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+        - name: start
+          in: query
+          schema:
+            type: string
+            format: date-time
+        - name: end
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: Performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PerformanceMetrics'
+
+  /v1/analytics/equity-curve:
+    get:
+      summary: Get equity curve
+      tags: [Analytics]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: query
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+        - name: interval
+          in: query
+          schema:
+            type: string
+            default: 1d
+      responses:
+        '200':
+          description: Equity curve data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  points:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/EquityPoint'
+
+  /v1/analytics/risk:
+    get:
+      summary: Get risk metrics
+      tags: [Analytics]
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: strategy_id
+          in: query
+          schema:
+            type: string
+        - name: exchange
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Risk metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RiskMetrics'
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Account:
+      type: object
+      properties:
+        account_id:
+          type: string
+        exchange:
+          type: string
+        currency:
+          type: string
+        cash:
+          type: string
+        buying_power:
+          type: string
+        portfolio_value:
+          type: string
+        pattern_day_trader:
+          type: boolean
+        trading_enabled:
+          type: boolean
+
+    Order:
+      type: object
+      properties:
+        order_id:
+          type: string
+        symbol:
+          type: string
+        exchange:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        order_type:
+          type: string
+          enum: [market, limit, stop, stop_limit, trailing_stop]
+        status:
+          type: string
+          enum: [pending, open, filled, partially_filled, cancelled, expired]
+        quantity:
+          type: string
+        filled_quantity:
+          type: string
+        price:
+          type: string
+        stop_price:
+          type: string
+        avg_fill_price:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    PlaceOrderRequest:
+      type: object
+      required:
+        - symbol
+        - side
+        - quantity
+      properties:
+        symbol:
+          type: string
+        side:
+          type: string
+          enum: [buy, sell]
+        order_type:
+          type: string
+          enum: [market, limit, stop, stop_limit]
+          default: market
+        quantity:
+          type: string
+        price:
+          type: string
+        stop_price:
+          type: string
+        time_in_force:
+          type: string
+          enum: [DAY, GTC, IOC, FOK]
+          default: GTC
+        exchange:
+          type: string
+
+    PlaceOrderResponse:
+      type: object
+      properties:
+        order_id:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+
+    Position:
+      type: object
+      properties:
+        symbol:
+          type: string
+        exchange:
+          type: string
+        quantity:
+          type: string
+        avg_entry_price:
+          type: string
+        current_price:
+          type: string
+        unrealized_pnl:
+          type: string
+        realized_pnl:
+          type: string
+        side:
+          type: string
+          enum: [long, short]
+
+    Quote:
+      type: object
+      properties:
+        symbol:
+          type: string
+        exchange:
+          type: string
+        bid:
+          type: string
+        ask:
+          type: string
+        bid_size:
+          type: string
+        ask_size:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    Bar:
+      type: object
+      properties:
+        symbol:
+          type: string
+        exchange:
+          type: string
+        open:
+          type: string
+        high:
+          type: string
+        low:
+          type: string
+        close:
+          type: string
+        volume:
+          type: string
+        trades:
+          type: integer
+        timestamp:
+          type: string
+          format: date-time
+
+    Strategy:
+      type: object
+      properties:
+        strategy_id:
+          type: string
+        name:
+          type: string
+        type:
+          type: string
+        parameters:
+          type: object
+          additionalProperties:
+            type: string
+        symbols:
+          type: array
+          items:
+            type: string
+        exchange:
+          type: string
+        enabled:
+          type: boolean
+        status:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    CreateStrategyRequest:
+      type: object
+      required:
+        - name
+        - type
+      properties:
+        name:
+          type: string
+        type:
+          type: string
+          enum: [grid, dca, trend, scalping, market_making, mean_reversion, breakout, momentum, pairs]
+        parameters:
+          type: object
+        symbols:
+          type: array
+          items:
+            type: string
+        exchange:
+          type: string
+        auto_start:
+          type: boolean
+          default: false
+
+    UpdateStrategyRequest:
+      type: object
+      properties:
+        parameters:
+          type: object
+        enabled:
+          type: boolean
+
+    AnalyzeMarketRequest:
+      type: object
+      required:
+        - symbol
+      properties:
+        symbol:
+          type: string
+        exchange:
+          type: string
+        timeframe:
+          type: string
+          default: 1h
+        options:
+          type: object
+
+    AnalyzeMarketResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        trend:
+          type: string
+        sentiment:
+          type: string
+        recommendation:
+          type: string
+        indicators:
+          type: array
+          items:
+            type: string
+        signals:
+          type: object
+        explanation:
+          type: string
+
+    GenerateSignalsRequest:
+      type: object
+      required:
+        - symbols
+      properties:
+        symbols:
+          type: array
+          items:
+            type: string
+        exchange:
+          type: string
+        timeframe:
+          type: string
+        strategy:
+          type: string
+
+    GenerateSignalsResponse:
+      type: object
+      properties:
+        signals:
+          type: array
+          items:
+            type: object
+            properties:
+              symbol:
+                type: string
+              side:
+                type: string
+              action:
+                type: string
+              confidence:
+                type: string
+              entry_price:
+                type: string
+              stop_loss:
+                type: string
+              take_profit:
+                type: string
+              rationale:
+                type: string
+
+    PredictPriceRequest:
+      type: object
+      required:
+        - symbol
+      properties:
+        symbol:
+          type: string
+        exchange:
+          type: string
+        model:
+          type: string
+          enum: [xgboost, lstm, transformer, ensemble]
+          default: ensemble
+        horizon:
+          type: integer
+          default: 24
+
+    PredictPriceResponse:
+      type: object
+      properties:
+        symbol:
+          type: string
+        current_price:
+          type: string
+        prediction:
+          type: array
+          items:
+            type: object
+            properties:
+              timestamp:
+                type: string
+                format: date-time
+              price:
+                type: string
+              lower_bound:
+                type: string
+              upper_bound:
+                type: string
+        model:
+          type: string
+        confidence:
+          type: string
+
+    RunBacktestRequest:
+      type: object
+      required:
+        - strategy_id
+      properties:
+        strategy_id:
+          type: string
+        exchange:
+          type: string
+        start:
+          type: string
+          format: date-time
+        end:
+          type: string
+          format: date-time
+        initial_capital:
+          type: number
+          default: 10000
+        parameters:
+          type: object
+
+    BacktestResult:
+      type: object
+      properties:
+        backtest_id:
+          type: string
+        status:
+          type: string
+        metrics:
+          $ref: '#/components/schemas/PerformanceMetrics'
+        equity_curve:
+          type: string
+        trades:
+          type: array
+          items:
+            $ref: '#/components/schemas/Order'
+
+    OptimizeStrategyRequest:
+      type: object
+      required:
+        - strategy_id
+      properties:
+        strategy_id:
+          type: string
+        method:
+          type: string
+          enum: [grid, genetic, bayesian]
+          default: bayesian
+        parameter_ranges:
+          type: object
+        max_iterations:
+          type: integer
+          default: 100
+
+    PerformanceMetrics:
+      type: object
+      properties:
+        total_return:
+          type: string
+        annualized_return:
+          type: string
+        volatility:
+          type: string
+        sharpe_ratio:
+          type: string
+        sortino_ratio:
+          type: string
+        calmar_ratio:
+          type: string
+        max_drawdown:
+          type: string
+        max_drawdown_duration:
+          type: integer
+        win_rate:
+          type: string
+        profit_factor:
+          type: string
+        total_trades:
+          type: integer
+        winning_trades:
+          type: integer
+        losing_trades:
+          type: integer
+
+    EquityPoint:
+      type: object
+      properties:
+        timestamp:
+          type: string
+          format: date-time
+        equity:
+          type: string
+        drawdown:
+          type: string
+        daily_return:
+          type: string
+
+    RiskMetrics:
+      type: object
+      properties:
+        var_95:
+          type: string
+        var_99:
+          type: string
+        cvar_95:
+          type: string
+        cvar_99:
+          type: string
+        max_leverage:
+          type: string
+        current_leverage:
+          type: string
+        exposure:
+          type: string
+        concentration_limit:
+          type: string
+        current_concentration:
+          type: string
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string
+
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              message:
+                type: string

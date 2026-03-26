@@ -1,0 +1,185 @@
+# Default values for opentreder
+# This file serves as a template for the Helm chart
+
+replicaCount: 2
+
+image:
+  repository: ghcr.io/opentreder/opentreder
+  pullPolicy: IfNotPresent
+  tag: "latest"
+
+imagePullSecrets: []
+nameOverride: ""
+fullnameOverride: ""
+
+serviceAccount:
+  create: true
+  annotations: {}
+  name: ""
+
+podAnnotations:
+  prometheus.io/scrape: "true"
+  prometheus.io/port: "9090"
+  prometheus.io/path: "/metrics"
+
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+  fsGroup: 1000
+
+securityContext:
+  capabilities:
+    drop:
+      - ALL
+  readOnlyRootFilesystem: true
+  runAsNonRoot: true
+  runAsUser: 1000
+
+service:
+  type: ClusterIP
+  rest:
+    port: 8080
+  websocket:
+    port: 8081
+  grpc:
+    port: 8082
+  metrics:
+    port: 9090
+
+ingress:
+  enabled: true
+  className: "nginx"
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+  hosts:
+    - host: api.opentreder.io
+      paths:
+        - path: /
+          pathType: Prefix
+  tls:
+    - secretName: opentreder-tls
+      hosts:
+        - api.opentreder.io
+
+resources:
+  requests:
+    memory: "512Mi"
+    cpu: "250m"
+  limits:
+    memory: "2Gi"
+    cpu: "2000m"
+
+autoscaling:
+  enabled: true
+  minReplicas: 2
+  maxReplicas: 10
+  targetCPUUtilizationPercentage: 70
+  targetMemoryUtilizationPercentage: 80
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity:
+  podAntiAffinity:
+    preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 100
+        podAffinityTerm:
+          labelSelector:
+            matchExpressions:
+              - key: app
+                operator: In
+                values:
+                  - opentreder
+          topologyKey: kubernetes.io/hostname
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  timeoutSeconds: 5
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  timeoutSeconds: 3
+  failureThreshold: 3
+
+env:
+  - name: OT_LOG_LEVEL
+    value: "info"
+  - name: OT_ENV
+    value: "production"
+
+secrets:
+  create: true
+  postgresPassword: "CHANGE_ME"
+  redisPassword: "CHANGE_ME"
+  binanceApiKey: ""
+  binanceApiSecret: ""
+  bybitApiKey: ""
+  bybitApiSecret: ""
+
+config:
+  app:
+    name: opentreder
+    env: production
+    log_level: info
+  server:
+    rest:
+      host: "0.0.0.0"
+      port: 8080
+    websocket:
+      host: "0.0.0.0"
+      port: 8081
+    grpc:
+      host: "0.0.0.0"
+      port: 8082
+  database:
+    postgres:
+      enabled: true
+      sslmode: disable
+  redis:
+    db: 0
+  ai:
+    enabled: true
+    model: ensemble
+  risk:
+    auto_stop_loss: true
+    auto_take_profit: true
+
+persistence:
+  enabled: true
+  storageClass: ""
+  accessMode: ReadWriteOnce
+  size: 10Gi
+
+postgresql:
+  enabled: true
+  auth:
+    username: opentreder
+    database: opentreder
+  primary:
+    persistence:
+      enabled: true
+      size: 20Gi
+  metrics:
+    enabled: true
+
+redis:
+  enabled: true
+  auth:
+    enabled: true
+  master:
+    persistence:
+      enabled: true
+      size: 5Gi
+  metrics:
+    enabled: true
