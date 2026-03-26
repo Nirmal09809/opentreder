@@ -45,6 +45,7 @@ const (
 	StateIdle    StrategyState = "idle"
 	StateRunning StrategyState = "running"
 	StatePaused  StrategyState = "paused"
+	StateStopped StrategyState = "stopped"
 	StateError   StrategyState = "error"
 )
 
@@ -123,6 +124,10 @@ func (s *BaseStrategy) OnCandle(candle *types.Candle) {
 		s.candles[key] = s.candles[key][1:]
 	}
 	s.mu.Unlock()
+}
+
+func (s *BaseStrategy) OnSignal(signal *types.Signal) {
+	s.AddSignal(signal)
 }
 
 func (s *BaseStrategy) GetCandles(symbol, timeframe string, limit int) []*types.Candle {

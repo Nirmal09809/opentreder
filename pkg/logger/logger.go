@@ -11,9 +11,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/sirupsen/logrus"
-	"gopkg.in/natefinch/lumberjack.v2"
 )
 
 type Logger struct {

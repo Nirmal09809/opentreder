@@ -46,24 +46,17 @@ func main() {
 	rootCmd := &cobra.Command{
 		Use:   "opentreder",
 		Short: "OpenTrader - Enterprise AI Trading Framework",
-		Long: `
-██████╗  ██████╗ ███████╗████████╗███████╗███╗   ██╗███████╗███████╗
-██╔══██╗██╔═══██╗██╔════╝╚══██╔══╝██╔════╝████╗  ██║██╔════╝██╔════╝
-██████╔╝██║   ██║███████╗   ██║   █████╗  ██╔██╗ ██║███████╗███████╗
-██╔═══╝ ██║   ██║╚════██║   ██║   ██╔══╝  ██║╚██╗██║╚════██║╚════██║
-██║     ╚██████╔╝███████║   ██║   ███████╗██║ ╚████║███████║███████║
-╚═╝      ╚═════╝ ╚══════╝   ╚═╝   ╚══════╝╚═╝  ╚═══╝╚══════╝╚══════╝
-                                                                    
-🤖 Enterprise AI Trading Framework
-━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+		Long: `OpenTrader v1.0.0
+================
+Enterprise AI Trading Framework
 
 A professional-grade, autonomous trading system with:
-• Multi-exchange support (Crypto, Stocks, Forex, Options)
-• AI-powered trading decisions (LLM + ML hybrid)
-• Advanced risk management
-• Real-time market data
-• Backtesting & optimization
-• OpenCode-style terminal interface
+* Multi-exchange support (Crypto, Stocks, Forex, Options)
+* AI-powered trading decisions (LLM + ML hybrid)
+* Advanced risk management
+* Real-time market data
+* Backtesting & optimization
+* OpenCode-style terminal interface
 `,
 		PersistentPreRunE: func(cmd *cobra.Command, args []string) error {
 			return initConfig()
