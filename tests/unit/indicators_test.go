@@ -1,9 +1,9 @@
-package indicators
+package opentreder_test
 
 import (
 	"testing"
 
-	"github.com/opentreder/opentreder/pkg/types"
+	"github.com/opentreder/opentreder/internal/strategies"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

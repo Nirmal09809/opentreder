@@ -1,11 +1,11 @@
-package strategies
+package opentreder_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	"github.com/opentreder/opentreder/pkg/types"
+	"github.com/opentreder/opentreder/internal/strategies"
 	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

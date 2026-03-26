@@ -1,4 +1,4 @@
-package types
+package opentreder_test
 
 import (
 	"testing"

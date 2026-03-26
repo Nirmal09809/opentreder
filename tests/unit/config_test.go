@@ -1,4 +1,4 @@
-package config
+package opentreder_test
 
 import (
 	"os"

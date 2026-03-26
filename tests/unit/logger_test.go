@@ -1,4 +1,4 @@
-package logger
+package opentreder_test
 
 import (
 	"bytes"
