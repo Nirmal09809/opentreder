@@ -17,7 +17,7 @@ require (
 	github.com/jung-kurt/gofpdf v1.16.2
 	github.com/go-echarts/go-echarts/v2 v2.7.1
 	github.com/gorilla/websocket v1.5.1
-	github.com/grpc/grpc-go v1.61.1
+	google.golang.org/grpc v1.61.1
 	github.com/pterm/pterm v0.12.50
 	github.com/shopspring/decimal v1.3.1
 	github.com/sirupsen/logrus v1.9.3
