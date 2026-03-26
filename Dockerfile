@@ -8,9 +8,9 @@ RUN apk add --no-cache git ca-certificates tzdata
 COPY go.mod ./
 RUN go mod download && touch go.sum
 
-COPY . .
+	COPY . .
 
-RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o opentreder ./cmd/cli
+RUN go mod tidy && CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -ldflags '-w -s' -o opentreder ./cmd/cli
 
 # Runtime Stage
 FROM alpine:3.19
