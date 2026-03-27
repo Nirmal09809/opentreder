@@ -8,7 +8,6 @@ import (
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/opentreder/opentreder/pkg/config"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/shopspring/decimal"
@@ -547,7 +546,7 @@ func (e *Engine) updatePositionPnL(pos *types.Position) {
 	}
 
 	e.mu.RLock()
-	ex, ok := e.exchanges[pos.Exchange]
+	ex, ok := e.exchanges[string(pos.Exchange)]
 	e.mu.RUnlock()
 
 	if !ok {

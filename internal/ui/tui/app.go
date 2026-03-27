@@ -3,23 +3,13 @@ package tui
 import (
 	"context"
 	"fmt"
-	"io"
-	"os"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
-	"github.com/mattn/go-runewidth"
-	"github.com/opentreder/opentreder/pkg/config"
 	"github.com/opentreder/opentreder/pkg/logger"
-	"github.com/opentreder/opentreder/pkg/types"
-	"github.com/shopspring/decimal"
 )
 
 var (
@@ -145,15 +135,15 @@ type PositionRow struct {
 }
 
 type OrderRow struct {
-	ID          string
-	Symbol      string
-	Side        string
-	Type        string
-	Status      string
-	Price       string
-	Quantity    string
-	Filled      string
-	CreatedAt   string
+	ID        string
+	Symbol    string
+	Side      string
+	Type      string
+	Status    string
+	Price     string
+	Quantity  string
+	FilledQty string
+	Time      string
 }
 
 type TradeRow struct {
@@ -167,13 +157,14 @@ type TradeRow struct {
 }
 
 type StrategyRow struct {
-	ID       string
-	Name     string
-	Type     string
-	Status   string
-	Trades   int
-	PnL      string
-	WinRate  string
+	ID      string
+	Name    string
+	Type    string
+	Status  string
+	Trades  int
+	PnL     string
+	WinRate string
+	State   string
 }
 
 type ExchangeRow struct {
@@ -300,11 +291,11 @@ func (m *Model) loadInitialData() *AppData {
 			{"5", "XRP/USDT", "LONG", "5000", "$0.52", "$0.51", "-$50.00", "-1.92%", "1x"},
 		},
 		Orders: []OrderRow{
-			{"ord_001", "BTC/USDT", "BUY", "LIMIT", "OPEN", "$44,000", "0.1", "0.0", "10:30:45"},
-			{"ord_002", "ETH/USDT", "SELL", "MARKET", "FILLED", "$2,380", "2.0", "2.0", "10:25:30"},
-			{"ord_003", "SOL/USDT", "BUY", "STOP", "$95.00", "50.0", "0.0", "10:20:15"},
-			{"ord_004", "BNB/USDT", "BUY", "LIMIT", "$290", "5.0", "0.0", "10:15:00"},
-			{"ord_005", "XRP/USDT", "SELL", "MARKET", "PARTIAL", "$0.51", "1000", "500", "10:10:45"},
+			{ID: "ord_001", Symbol: "BTC/USDT", Side: "BUY", Type: "LIMIT", Status: "OPEN", Price: "$44,000", Quantity: "0.1", FilledQty: "0.0", Time: "10:30:45"},
+			{ID: "ord_002", Symbol: "ETH/USDT", Side: "SELL", Type: "MARKET", Status: "FILLED", Price: "$2,380", Quantity: "2.0", FilledQty: "2.0", Time: "10:25:30"},
+			{ID: "ord_003", Symbol: "SOL/USDT", Side: "BUY", Type: "STOP", Status: "OPEN", Price: "$95.00", Quantity: "50.0", FilledQty: "0.0", Time: "10:20:15"},
+			{ID: "ord_004", Symbol: "BNB/USDT", Side: "BUY", Type: "LIMIT", Status: "OPEN", Price: "$290", Quantity: "5.0", FilledQty: "0.0", Time: "10:15:00"},
+			{ID: "ord_005", Symbol: "XRP/USDT", Side: "SELL", Type: "MARKET", Status: "PARTIAL", Price: "$0.51", Quantity: "1000", FilledQty: "500", Time: "10:10:45"},
 		},
 		Trades: []TradeRow{
 			{"trd_001", "ETH/USDT", "BUY", "$2,380", "2.0", "$0.48", "10:25:30"},
@@ -314,11 +305,11 @@ func (m *Model) loadInitialData() *AppData {
 			{"trd_005", "XRP/USDT", "SELL", "$0.51", "500", "$0.26", "10:05:15"},
 		},
 		Strategies: []StrategyRow{
-			{"str_001", "Grid BTC", "grid", "ACTIVE", 45, "+$1,234.56", "68%", "ACTIVE"},
-			{"str_002", "DCA ETH", "dca", "ACTIVE", 120, "+$456.78", "72%", "ACTIVE"},
-			{"str_003", "Trend SOL", "trend", "PAUSED", 23, "-$123.45", "52%", "PAUSED"},
-			{"str_004", "Scalper", "scalping", "ACTIVE", 890, "+$2,345.67", "61%", "ACTIVE"},
-			{"str_005", "Arbitrage", "arbitrage", "DISABLED", 0, "$0.00", "0%", "DISABLED"},
+			{ID: "str_001", Name: "Grid BTC", Type: "grid", Status: "ACTIVE", Trades: 45, PnL: "+$1,234.56", WinRate: "68%", State: "ACTIVE"},
+			{ID: "str_002", Name: "DCA ETH", Type: "dca", Status: "ACTIVE", Trades: 120, PnL: "+$456.78", WinRate: "72%", State: "ACTIVE"},
+			{ID: "str_003", Name: "Trend SOL", Type: "trend", Status: "PAUSED", Trades: 23, PnL: "-$123.45", WinRate: "52%", State: "PAUSED"},
+			{ID: "str_004", Name: "Scalper", Type: "scalping", Status: "ACTIVE", Trades: 890, PnL: "+$2,345.67", WinRate: "61%", State: "ACTIVE"},
+			{ID: "str_005", Name: "Arbitrage", Type: "arbitrage", Status: "DISABLED", Trades: 0, PnL: "$0.00", WinRate: "0%", State: "DISABLED"},
 		},
 		Exchanges: []ExchangeRow{
 			{"Binance", "Connected", "12ms", "Yes", "2s ago"},
@@ -515,7 +506,7 @@ func (m *Model) dashboardView() string {
 	cols := 4
 	colWidth := (m.width - 20) / cols
 
-	card := func(title, value, color string) string {
+	_ = func(title, value, color string) string {
 		return fmt.Sprintf("%s%s%s│",
 			lipgloss.NewStyle().
 				Width(colWidth).
@@ -558,9 +549,9 @@ func (m *Model) dashboardView() string {
 
 func (m *Model) footer() string {
 	view := m.components[m.currentView]
-	help := []string{"?"}
+	_ = []string{"?"}
 	if view != nil {
-		help = view.Help()
+		_ = view.Help()
 	}
 
 	return fmt.Sprintf(`
@@ -589,9 +580,11 @@ type tickMsg time.Time
 type statusMsg string
 type dataMsg *AppData
 
-func (m *Model) tick() tea.Msg {
-	time.Sleep(m.refreshInterval)
-	return tickMsg(time.Now())
+func (m *Model) tick() tea.Cmd {
+	return func() tea.Msg {
+		time.Sleep(m.refreshInterval)
+		return tickMsg(time.Now())
+	}
 }
 
 func (m *Model) runCommand(cmd string) error {
@@ -714,7 +707,7 @@ func (o *Orders) Render() string {
 			status = "✅ " + status
 		}
 		sb.WriteString(fmt.Sprintf("│ %-8s │ %-10s │ %-4s │ %-6s │ %-8s │ %-8s │ %-7s │ %-6s │\n",
-			ord.ID, ord.Symbol, ord.Side, ord.Type, status, ord.Price, ord.Quantity, ord.Filled))
+			ord.ID, ord.Symbol, ord.Side, ord.Type, status, ord.Price, ord.Quantity, ord.FilledQty))
 	}
 	sb.WriteString("└──────────┴────────────┴──────┴────────┴──────────┴──────────┴─────────┴────────┘\n")
 

@@ -7,12 +7,10 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 	"sync"
 	"time"
 
 	"github.com/google/uuid"
-	"github.com/opentreder/opentreder/pkg/config"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/shopspring/decimal"
@@ -368,7 +366,7 @@ func (b *Brain) Chat(ctx context.Context, message string) (string, error) {
 	})
 	b.client.historyMu.Unlock()
 
-	messages := b.getRecentHistory(20)
+	messages := b.client.getRecentHistory(20)
 	messages = append(messages, ChatMessage{
 		Role:    "user",
 		Content: message,
@@ -414,7 +412,7 @@ func (b *Brain) GenerateSignal(ctx context.Context, symbol string, candles []*ty
 		CreatedAt: time.Now(),
 	}
 
-	analysis, err := b.AnalyzeMarket(symbol, candles)
+	_, err := b.AnalyzeMarket(symbol, candles)
 	if err != nil {
 		return nil, err
 	}

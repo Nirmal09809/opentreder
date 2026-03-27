@@ -6,7 +6,6 @@ import (
 	"sync"
 	"time"
 
-	"github.com/opentreder/opentreder/pkg/config"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
 )

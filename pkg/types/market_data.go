@@ -101,15 +101,24 @@ type Transaction struct {
 }
 
 type OrderRow struct {
-	Symbol   string `json:"symbol"`
-	Side     string `json:"side"`
-	Type     string `json:"type"`
-	Quantity string `json:"quantity"`
-	Price    string `json:"price"`
+	ID        string `json:"id"`
+	Symbol    string `json:"symbol"`
+	Side      string `json:"side"`
+	Type      string `json:"type"`
+	Status    string `json:"status"`
+	Price     string `json:"price"`
+	Quantity  string `json:"quantity"`
+	FilledQty string `json:"filled_qty"`
+	Time      string `json:"time"`
 }
 
 type StrategyRow struct {
+	ID     string `json:"id"`
 	Name   string `json:"name"`
+	Type   string `json:"type"`
 	Status string `json:"status"`
+	Trades int    `json:"trades"`
 	PnL    string `json:"pnl"`
+	WinRate string `json:"win_rate"`
+	State  string `json:"state"`
 }

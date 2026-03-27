@@ -225,6 +225,19 @@ func (e *Exchange) IsConnected() bool {
 	return e.connected
 }
 
+func (e *Exchange) Close() error {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.connected = false
+	e.balances = nil
+	e.positions = nil
+	e.orders = nil
+
+	logger.Info("Closed exchange connection", "exchange", e.Name)
+	return nil
+}
+
 func (e *Exchange) verifyCredentials() error {
 	return nil
 }

@@ -298,7 +298,7 @@ func (m *Manager) CalculateSharpeRatio(returns []decimal.Decimal, riskFreeRate d
 		diff := r.Sub(meanReturn)
 		sumSquaredDiff = sumSquaredDiff.Add(diff.Mul(diff))
 	}
-	variance := sumSquaredDiff.Div(decimal.NewFromInt(int64(len(returns) - 1)))
+	_ = sumSquaredDiff.Div(decimal.NewFromInt(int64(len(returns) - 1)))
 	stdDev := decimal.NewFromFloat(0.01)
 
 	if stdDev.IsZero() {

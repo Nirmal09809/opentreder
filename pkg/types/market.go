@@ -334,9 +334,10 @@ type Account struct {
 type PnLReport struct {
 	TotalTrades        int              `json:"total_trades"`
 	WinningTrades      int              `json:"winning_trades"`
-	LosingTrades        int              `json:"losing_trades"`
+	LosingTrades       int              `json:"losing_trades"`
 	WinRate            decimal.Decimal  `json:"win_rate"`
 	TotalPnL           decimal.Decimal  `json:"total_pnl"`
+	UnrealizedPnL      decimal.Decimal  `json:"unrealized_pnl"`
 	AvgWin             decimal.Decimal  `json:"avg_win"`
 	AvgLoss            decimal.Decimal  `json:"avg_loss"`
 	ProfitFactor       decimal.Decimal  `json:"profit_factor"`

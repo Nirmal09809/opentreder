@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/opentreder/opentreder/pkg/logger"
+	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/shopspring/decimal"
 	"github.com/spf13/cast"
 	"github.com/spf13/viper"
@@ -63,17 +64,20 @@ type SQLiteConfig struct {
 }
 
 type PostgreSQLConfig struct {
-	Enabled    bool   `mapstructure:"enabled"`
-	Host       string `mapstructure:"host"`
-	Port       int    `mapstructure:"port"`
-	User       string `mapstructure:"user"`
-	Password   string `mapstructure:"password"`
-	Database   string `mapstructure:"database"`
-	Schema     string `mapstructure:"schema"`
-	SSLMode    string `mapstructure:"ssl_mode"`
-	SSLCert    string `mapstructure:"ssl_cert"`
-	SSLKey     string `mapstructure:"ssl_key"`
-	SSLRootCert string `mapstructure:"ssl_root_cert"`
+	Enabled       bool   `mapstructure:"enabled"`
+	Host          string `mapstructure:"host"`
+	Port          int    `mapstructure:"port"`
+	User          string `mapstructure:"user"`
+	Password      string `mapstructure:"password"`
+	Database      string `mapstructure:"database"`
+	Schema        string `mapstructure:"schema"`
+	SSLMode       string `mapstructure:"ssl_mode"`
+	SSLCert       string `mapstructure:"ssl_cert"`
+	SSLKey        string `mapstructure:"ssl_key"`
+	SSLRootCert   string `mapstructure:"ssl_root_cert"`
+	MaxOpenConns  int    `mapstructure:"max_open_conns"`
+	MaxIdleConns  int    `mapstructure:"max_idle_conns"`
+	ConnMaxLifetime string `mapstructure:"conn_max_lifetime"`
 }
 
 type CacheConfig struct {
@@ -450,7 +454,7 @@ func Load(configPath string, opts ...Option) (*Config, error) {
 		}
 
 		config = &Config{}
-		if err := v.Unmarshal(config, opts...); err != nil {
+		if err := v.Unmarshal(config); err != nil {
 			loadErr = fmt.Errorf("failed to unmarshal config: %w", err)
 			return
 		}
@@ -622,7 +626,7 @@ func validateConfig(cfg *Config) error {
 		return fmt.Errorf("slippage tolerance must be between 0 and 1")
 	}
 
-	if cfg.Risk.MaxLeverage.LessThan(decimal.One) {
+	if cfg.Risk.MaxLeverage.LessThan(decimal.NewFromInt(1)) {
 		return fmt.Errorf("max leverage must be at least 1")
 	}
 
@@ -630,11 +634,7 @@ func validateConfig(cfg *Config) error {
 }
 
 func (c *Config) GetString(path string) string {
-	v := viper.GetString(path)
-	if v == nil {
-		return ""
-	}
-	return v.(string)
+	return viper.GetString(path)
 }
 
 func (c *Config) GetInt(path string) int {
@@ -675,7 +675,7 @@ func BindEnv(keys ...string) {
 	viper.BindEnv(keys...)
 }
 
-func Set(key string, value interface{}) {
+func SetValue(key string, value interface{}) {
 	viper.Set(key, value)
 }
 
@@ -698,9 +698,7 @@ func (c *Config) Sub(key string) (*Config, error) {
 
 func (c *Config) Merge(override map[string]interface{}) error {
 	for key, value := range override {
-		if err := viper.Set(key, value); err != nil {
-			return err
-		}
+		viper.Set(key, value)
 	}
 
 	if err := viper.Unmarshal(c); err != nil {
@@ -871,8 +869,7 @@ func castToInt(v interface{}) int {
 	case float64:
 		return int(val)
 	case string:
-		i, _ := cast.ToInt(val)
-		return i
+		return cast.ToInt(val)
 	default:
 		return 0
 	}
@@ -887,8 +884,7 @@ func castToFloat64(v interface{}) float64 {
 	case int64:
 		return float64(val)
 	case string:
-		f, _ := cast.ToFloat64(val)
-		return f
+		return cast.ToFloat64(val)
 	default:
 		return 0
 	}
@@ -901,8 +897,7 @@ func castToBool(v interface{}) bool {
 	case int:
 		return val != 0
 	case string:
-		b, _ := cast.ToBool(val)
-		return b
+		return cast.ToBool(val)
 	default:
 		return false
 	}

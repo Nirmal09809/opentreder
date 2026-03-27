@@ -627,6 +627,7 @@ type MarketMakingStrategy struct {
 	currentAsk    *types.Order
 	orderSize     decimal.Decimal
 	rebalance     bool
+	position      *types.Position
 }
 
 func NewMarketMakingStrategy(symbol string, params map[string]interface{}) *MarketMakingStrategy {
@@ -839,7 +840,7 @@ func (b *BreakoutStrategy) OnCandle(candle *types.Candle) {
 	}
 
 	highestHigh := decimal.Zero
-	lowestLow := decimal.MaximumDecimal
+	lowestLow := decimal.NewFromFloat(1e18)
 	avgVolume := decimal.Zero
 
 	for i := 0; i < b.lookbackPeriod; i++ {

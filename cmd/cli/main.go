@@ -3,21 +3,15 @@ package main
 import (
 	"context"
 	"fmt"
-	"io"
 	"os"
 	"os/signal"
 	"runtime"
-	"sort"
-	"strconv"
 	"strings"
 	"sync"
 	"syscall"
 	"time"
 
-	"github.com/charmbracelet/bubbles/table"
 	"github.com/charmbracelet/bubbletea"
-	"github.com/charmbracelet/lipgloss"
-	"github.com/google/uuid"
 	"github.com/opentreder/opentreder/internal/ai"
 	"github.com/opentreder/opentreder/internal/core/engine"
 	"github.com/opentreder/opentreder/internal/core/orders"
@@ -32,7 +26,6 @@ import (
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/shopspring/decimal"
-	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 )
 
@@ -63,7 +56,6 @@ A professional-grade, autonomous trading system with:
 		},
 	}
 
-	cobra.EnablePersistentHyphenation = true
 	cobra.EnableCommandSorting = false
 
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file path")
@@ -102,7 +94,7 @@ func initConfig() error {
 	}
 
 	log := logger.New(&cfg.Logging)
-	logger.DefaultLogger = log
+	_ = log
 
 	return nil
 }
@@ -565,7 +557,7 @@ func (e *tradingEngine) initialize(ctx context.Context, exchange, strategy strin
 
 	e.orders = orders.NewManager(e.engine)
 	e.portfolio = portfolio.NewManager()
-	e.risk = risk.NewManager(risk.Config{})
+	e.risk = risk.NewManager(e.engine)
 
 	e.data = marketdata.NewManager(marketdata.Config{
 		Enabled:      true,
@@ -584,7 +576,7 @@ func (e *tradingEngine) initialize(ctx context.Context, exchange, strategy strin
 		}
 	}
 
-	ex, err := exchanges.New(exchange, exchanges.Config{})
+	ex, err := exchanges.New(exchange, exchanges.ExchangeConfig{})
 	if err != nil {
 		return fmt.Errorf("failed to initialize exchange: %w", err)
 	}
@@ -727,7 +719,7 @@ func validateConfig() error {
 }
 
 func setConfigValue(key, value string) error {
-	config.Set(key, value)
+	config.SetValue(key, value)
 	logger.Info("Config value set", "key", key, "value", value)
 	return nil
 }

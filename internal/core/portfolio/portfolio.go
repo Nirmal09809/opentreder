@@ -288,7 +288,7 @@ func (m *Manager) GetStats() types.PnLReport {
 	}
 
 	if report.TotalTrades > 0 {
-		report.WinRate = report.WinningTrades.Div(decimal.NewFromInt(int64(report.TotalTrades))).Mul(decimal.NewFromInt(100))
+		report.WinRate = decimal.NewFromInt(int64(report.WinningTrades)).Div(decimal.NewFromInt(int64(report.TotalTrades))).Mul(decimal.NewFromInt(100))
 	}
 
 	return report
