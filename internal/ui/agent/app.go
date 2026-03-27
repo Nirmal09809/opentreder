@@ -72,7 +72,7 @@ var sessions = []string{"main-trading", "backtest-session", "strategy-dev", "pap
 
 func NewModel() Model {
 	ti := textinput.New()
-	ti.Placeholder = "Tell me what you want to trade..."
+	ti.Placeholder = "Enter your API key (sk-...)"
 	ti.Focus()
 	ti.Prompt = cyanStyle.Render("❯ ")
 	ti.TextStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#E5E7EB"))
@@ -169,13 +169,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 	}
 
-	if m.waitingForInput {
-		var cmd tea.Cmd
-		m.textInput, cmd = m.textInput.Update(msg)
-		return m, cmd
-	}
-
-	return m, nil
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(msg)
+	return m, cmd
 }
 
 func (m Model) handleKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
@@ -310,6 +306,23 @@ func (m Model) handleKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 
 func (m Model) handleEnter() (Model, tea.Cmd) {
 	if m.view == ViewSetup {
+		m.apiKey = m.textInput.Value()
+		if m.apiKey == "" {
+			m.messages = append(m.messages, Message{
+				role:      "system",
+				content:   "Please enter your API key!",
+				timestamp: time.Now(),
+			})
+			return m, nil
+		}
+		if !strings.HasPrefix(m.apiKey, "sk-") {
+			m.messages = append(m.messages, Message{
+				role:      "system",
+				content:   "Invalid API key format. OpenAI keys start with 'sk-'",
+				timestamp: time.Now(),
+			})
+			return m, nil
+		}
 		m.view = ViewLoginSuccess
 		return m, func() tea.Msg {
 			time.Sleep(2 * time.Second)
@@ -438,7 +451,7 @@ func (m Model) View() string {
 	case ViewLoading:
 		return RenderLoadingAnimation(m.loadingStep, m.loadingProgress)
 	case ViewSetup:
-		return RenderSetupScreen()
+		return m.renderSetupView()
 	case ViewLoginSuccess:
 		return RenderLoginSuccess()
 	case ViewChat:
@@ -528,6 +541,65 @@ func (m Model) renderMessages() string {
 	}
 
 	return strings.Join(lines, "\n")
+}
+
+func (m Model) renderSetupView() string {
+	var lines []string
+
+	lines = append(lines, fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                      ║
+║   ██████╗ ██╗██╗  ██╗███████╗██╗     ██╗      █████╗ ██████╗                    ║
+║   ██╔══██╗██║╚██╗██╔╝██╔════╝██║     ██║     ██╔══██╗██╔══██╗                   ║
+║   ██████╔╝██║ ╚███╔╝ █████╗  ██║     ██║     ███████║██████╔╝                   ║
+║   ██╔═══╝ ██║ ██╔██╗ ██╔══╝  ██║     ██║     ██╔══██║██╔══██╗                   ║
+║   ██║     ██║██╔╝ ██╗███████╗███████╗███████╗██║  ██║██║  ██║                   ║
+║   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝                   ║
+║                                                                                      ║
+║            %sEnterprise AI Trading Agent Framework%s                                    ║
+║                 %s10x More Powerful Than NautilusTrader%s                             ║
+║                                                                                      ║
+╠══════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                      ║
+║   %s🚀 Welcome to OpenTrader Agent%s                                                   ║
+║                                                                                      ║
+║   Supported AI Providers:                                                            ║
+║   • OpenAI (GPT-4o) - %sRecommended%s                                                 ║
+║   • Anthropic (Claude)                                                              ║
+║   • Google Gemini                                                                  ║
+║   • Local Models (Ollama)                                                          ║
+║                                                                                      ║
+╠══════════════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                      ║
+║   %sEnter your OpenAI API Key:%s                                                      ║
+║                                                                                      ║`,
+		purpleStyle.Render("╔══════════════════════════════════════════════════════════════════════════"),
+		purpleStyle.Render("║"),
+		cyanStyle.Render("╔══════════════════════════════════════════════════════════════════════════"),
+		cyanStyle.Render("║"),
+		goldStyle.Render(strings.Repeat("─", 30)),
+		goldStyle.Render(strings.Repeat("─", 30)),
+		successStyle.Render("●"),
+		successStyle.Render(strings.Repeat("─", 30)),
+		bannerStyle.Render(strings.Repeat("─", 30)),
+		bannerStyle.Render(strings.Repeat("─", 30))))
+
+	lines = append(lines, "║                                                                                      ║")
+	lines = append(lines, "║   "+m.textInput.View()+"   ║")
+	lines = append(lines, "║                                                                                      ║")
+
+	if len(m.messages) > 0 {
+		for _, msg := range m.messages {
+			lines = append(lines, fmt.Sprintf("║   %s%s                                                                    ║",
+				errorStyle.Render("⚠"), dimStyle.Render(msg.content)))
+		}
+	}
+
+	lines = append(lines, "║                                                                                      ║")
+	lines = append(lines, dimStyle.Render("║   [Enter] Connect   [Esc] Exit                                                   ║"))
+	lines = append(lines, "╚══════════════════════════════════════════════════════════════════════════════════════════╝")
+
+	return lipgloss.NewStyle().Width(m.width).Render(strings.Join(lines, "\n"))
 }
 
 func wrapText(text string, maxWidth int) string {
