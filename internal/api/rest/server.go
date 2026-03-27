@@ -148,7 +148,7 @@ func (s *Server) handleHealth(w http.ResponseWriter, r *http.Request) {
 		Data: map[string]interface{}{
 			"status":  "healthy",
 			"version": "1.0.0",
-			"uptime":  time.Since(s.engine.GetUptime()),
+			"uptime":  s.engine.GetUptime().String(),
 		},
 		Time: time.Now(),
 	})
@@ -348,7 +348,6 @@ func (s *Server) handleCancelOrder(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleGetTrades(w http.ResponseWriter, r *http.Request) {
 	symbol := r.URL.Query().Get("symbol")
-	limit := 100
 
 	trades := []interface{}{}
 
@@ -367,9 +366,9 @@ func (s *Server) handleGetMarket(w http.ResponseWriter, r *http.Request) {
 	symbol := vars["symbol"]
 
 	ticker := &types.Ticker{
-		Symbol:            symbol,
-		LastPrice:         decimal.NewFromFloat(44135.68),
-		PriceChangePct24h: decimal.NewFromFloat(2.34),
+		Symbol:           symbol,
+		LastPrice:        decimal.NewFromFloat(44135.68),
+		PriceChangePct: decimal.NewFromFloat(2.34),
 	}
 
 	s.respond(w, r, APIResponse{
@@ -415,8 +414,6 @@ func (s *Server) handleGetOrderBook(w http.ResponseWriter, r *http.Request) {
 }
 
 func (s *Server) handleGetPrices(w http.ResponseWriter, r *http.Request) {
-	symbols := r.URL.Query()["symbols"]
-
 	prices := map[string]decimal.Decimal{}
 
 	s.respond(w, r, APIResponse{
@@ -486,22 +483,20 @@ func (s *Server) handleGetStrategy(w http.ResponseWriter, r *http.Request) {
 
 func (s *Server) handleStartStrategy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	name := vars["name"]
 
 	s.respond(w, r, APIResponse{
 		Success: true,
-		Data:    map[string]string{"status": "started"},
+		Data:    map[string]string{"status": "started", "name": vars["name"]},
 		Time:    time.Now(),
 	})
 }
 
 func (s *Server) handleStopStrategy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	name := vars["name"]
 
 	s.respond(w, r, APIResponse{
 		Success: true,
-		Data:    map[string]string{"status": "stopped"},
+		Data:    map[string]string{"status": "stopped", "name": vars["name"]},
 		Time:    time.Now(),
 	})
 }
@@ -580,7 +575,7 @@ func (s *Server) handleSetConfig(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	config.Set(key, value)
+	s.config = nil
 
 	s.respond(w, r, APIResponse{
 		Success: true,
@@ -597,7 +592,7 @@ func (s *Server) loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()
 		next.ServeHTTP(w, r)
-		logger.API(r.Method, r.URL.Path, 200, time.Since(start), nil)
+		logger.Info("API request", "method", r.Method, "path", r.URL.Path, "latency", time.Since(start))
 	})
 }
 

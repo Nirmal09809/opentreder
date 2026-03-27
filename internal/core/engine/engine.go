@@ -773,6 +773,38 @@ func (e *Engine) GetUptime() time.Duration {
 	return time.Since(e.startTime)
 }
 
+func (e *Engine) GetPortfolio() *types.Portfolio {
+	e.mu.RLock()
+	defer e.mu.RUnlock()
+
+	if e.portfolio == nil {
+		return nil
+	}
+
+	balances := e.portfolio.GetAllBalances()
+	positions := e.positions.GetAll()
+
+	totalValue := e.portfolio.TotalValue("USDT")
+
+	portfolio := &types.Portfolio{
+		TotalValue: totalValue,
+		CashBalance: decimal.Zero,
+		Equity: totalValue,
+		Positions: make(map[string]*types.Position),
+	}
+
+	for _, balance := range balances {
+		portfolio.CashBalance = portfolio.CashBalance.Add(balance.Total)
+		portfolio.Equity = portfolio.Equity.Add(balance.USDValue)
+	}
+
+	for _, pos := range positions {
+		portfolio.Positions[pos.Symbol] = pos
+	}
+
+	return portfolio
+}
+
 func (e *Engine) Subscribe(ch chan<- Event) {
 	go func() {
 		for {

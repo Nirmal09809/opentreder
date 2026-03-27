@@ -136,8 +136,8 @@ func (m *Manager) CheckAllLimits() error {
 
 func (m *Manager) ValidateOrder(order *types.Order) error {
 	if order.Quantity.GreaterThan(m.config.MaxOrderSize) {
-		return fmt.Errorf("order size %.2f exceeds maximum %.2f",
-			order.Quantity, m.config.MaxOrderSize)
+		return fmt.Errorf("order size %s exceeds maximum %s",
+			order.Quantity.StringFixed(2), m.config.MaxOrderSize.StringFixed(2))
 	}
 
 	m.mu.RLock()
@@ -157,8 +157,8 @@ func (m *Manager) ValidatePosition(position *types.Position) error {
 	}
 
 	if position.Leverage.GreaterThan(m.config.MaxLeverage) {
-		return fmt.Errorf("leverage %.1f exceeds maximum %.1f",
-			position.Leverage, m.config.MaxLeverage)
+		return fmt.Errorf("leverage %s exceeds maximum %s",
+			position.Leverage.StringFixed(1), m.config.MaxLeverage.StringFixed(1))
 	}
 
 	return nil
@@ -201,11 +201,93 @@ func (m *Manager) CalculateTakeProfit(entryPrice decimal.Decimal, side types.Pos
 }
 
 func (m *Manager) GetExposure() decimal.Decimal {
-	return decimal.NewFromFloat(0.45)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.engine == nil {
+		return decimal.Zero
+	}
+
+	portfolio := m.engine.GetPortfolio()
+	if portfolio == nil || portfolio.Equity.IsZero() {
+		return decimal.Zero
+	}
+
+	totalPositionValue := decimal.Zero
+	for _, pos := range portfolio.Positions {
+		totalPositionValue = totalPositionValue.Add(pos.CurrentPrice.Mul(pos.Quantity))
+	}
+
+	return totalPositionValue.Div(portfolio.Equity)
 }
 
 func (m *Manager) GetDrawdown() decimal.Decimal {
-	return decimal.NewFromFloat(0.03)
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.engine == nil {
+		return decimal.Zero
+	}
+
+	portfolio := m.engine.GetPortfolio()
+	if portfolio == nil {
+		return decimal.Zero
+	}
+
+	if portfolio.Equity.IsZero() || portfolio.TotalValue.IsZero() {
+		return decimal.Zero
+	}
+
+	peak := portfolio.TotalValue
+	current := portfolio.Equity
+
+	if current.LessThan(peak) {
+		drawdown := peak.Sub(current).Div(peak)
+		return drawdown
+	}
+
+	return decimal.Zero
+}
+
+func (m *Manager) GetDailyLoss() decimal.Decimal {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.engine == nil {
+		return decimal.Zero
+	}
+
+	portfolio := m.engine.GetPortfolio()
+	if portfolio == nil {
+		return decimal.Zero
+	}
+
+	return portfolio.DayPnL.Abs()
+}
+
+func (m *Manager) GetTotalExposure() decimal.Decimal {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	if m.engine == nil {
+		return decimal.Zero
+	}
+
+	portfolio := m.engine.GetPortfolio()
+	if portfolio == nil || portfolio.Equity.IsZero() {
+		return decimal.Zero
+	}
+
+	totalExposure := decimal.Zero
+	for _, pos := range portfolio.Positions {
+		exposure := pos.CurrentPrice.Mul(pos.Quantity)
+		if pos.Side == types.PositionSideShort {
+			exposure = exposure.Neg()
+		}
+		totalExposure = totalExposure.Add(exposure)
+	}
+
+	return totalExposure.Div(portfolio.Equity)
 }
 
 func (m *Manager) UpdateLimit(name string, current decimal.Decimal) {

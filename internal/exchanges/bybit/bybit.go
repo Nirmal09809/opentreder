@@ -242,18 +242,16 @@ func (c *Client) GetTicker(ctx context.Context, category Category, symbol string
 	item := result.List[0]
 
 	return &types.Ticker{
-		Symbol:            symbol,
-		Exchange:          types.ExchangeBybit,
-		LastPrice:         parseDecimal(item.LastPrice),
+		Symbol:           symbol,
+		Exchange:         types.ExchangeBybit,
+		LastPrice:        parseDecimal(item.LastPrice),
 		BidPrice:         parseDecimal(item.Bid1Price),
-		BidQty:           parseDecimal(item.Bid1Size),
 		AskPrice:         parseDecimal(item.Ask1Price),
-		AskQty:           parseDecimal(item.Ask1Size),
 		High24h:          parseDecimal(item.HighPrice24h),
 		Low24h:           parseDecimal(item.LowPrice24h),
 		Volume24h:        parseDecimal(item.Volume24h),
 		QuoteVolume24h:   parseDecimal(item.Turnover24h),
-		PriceChangePct24h: parseDecimal(item.Price24hPcnt).Mul(decimal.NewFromInt(100)),
+		PriceChangePct:   parseDecimal(item.Price24hPcnt).Mul(decimal.NewFromInt(100)),
 		Timestamp:        time.Now(),
 	}, nil
 }
@@ -287,19 +285,19 @@ func (c *Client) GetOrderBook(ctx context.Context, category Category, symbol str
 		Symbol:    symbol,
 		Exchange:  types.ExchangeBybit,
 		Timestamp: time.Now(),
-		Bids:      make([]types.OrderBookLevel, len(result.B)),
-		Asks:      make([]types.OrderBookLevel, len(result.A)),
+		Bids:      make([]types.PriceLevel, len(result.B)),
+		Asks:      make([]types.PriceLevel, len(result.A)),
 	}
 
 	for i, bid := range result.B {
-		book.Bids[i] = types.OrderBookLevel{
+		book.Bids[i] = types.PriceLevel{
 			Price:    parseDecimal(bid[0]),
 			Quantity: parseDecimal(bid[1]),
 		}
 	}
 
 	for i, ask := range result.A {
-		book.Asks[i] = types.OrderBookLevel{
+		book.Asks[i] = types.PriceLevel{
 			Price:    parseDecimal(ask[0]),
 			Quantity: parseDecimal(ask[1]),
 		}

@@ -451,19 +451,19 @@ func (c *Client) GetOrderBook(ctx context.Context, productID string, level int) 
 	orderBook := &types.OrderBook{
 		Symbol:   productID,
 		Exchange: types.ExchangeCoinbase,
-		Bids:     make([]types.OrderBookLevel, len(book.Bids)),
-		Asks:     make([]types.OrderBookLevel, len(book.Asks)),
+		Bids:     make([]types.PriceLevel, len(book.Bids)),
+		Asks:     make([]types.PriceLevel, len(book.Asks)),
 	}
 
 	for i, bid := range book.Bids {
-		orderBook.Bids[i] = types.OrderBookLevel{
+		orderBook.Bids[i] = types.PriceLevel{
 			Price:    parseDecimal(bid[0]),
 			Quantity: parseDecimal(bid[1]),
 		}
 	}
 
 	for i, ask := range book.Asks {
-		orderBook.Asks[i] = types.OrderBookLevel{
+		orderBook.Asks[i] = types.PriceLevel{
 			Price:    parseDecimal(ask[0]),
 			Quantity: parseDecimal(ask[1]),
 		}

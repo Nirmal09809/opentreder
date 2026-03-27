@@ -1,10 +1,9 @@
 package security
 
 import (
-	"context"
 	"crypto/aes"
 	"crypto/cipher"
-	"crypto/rand"
+	cryptorand "crypto/rand"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -15,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/opentreder/opentreder/pkg/logger"
+	"github.com/shopspring/decimal"
 )
 
 type AuditLevel string
@@ -94,7 +94,8 @@ func WithMaxEvents(max int) AuditOption {
 func WithEncryption(key string) AuditOption {
 	return func(l *auditLogger) {
 		l.encrypt = true
-		l.encryptionKey = sha256.Sum256([]byte(key))
+		hash := sha256.Sum256([]byte(key))
+		l.encryptionKey = hash[:]
 	}
 }
 
@@ -263,7 +264,7 @@ func (l *auditLogger) encryptData(data []byte) []byte {
 	}
 
 	nonce := make([]byte, gcm.NonceSize())
-	rand.Read(nonce)
+	cryptorand.Read(nonce)
 
 	ciphertext := gcm.Seal(nonce, nonce, data, nil)
 	return []byte(base64.StdEncoding.EncodeToString(ciphertext))

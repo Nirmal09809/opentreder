@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
@@ -321,8 +322,10 @@ func (c *Client) PlaceOrder(ctx context.Context, req *types.Order) (*types.Order
 		return nil, err
 	}
 
-	orderID, _ := result["id"].(string)
-	req.ID = orderID
+	if idStr, ok := result["id"].(string); ok {
+		orderID, _ := uuid.Parse(idStr)
+		req.ID = orderID
+	}
 	return req, nil
 }
 
@@ -464,8 +467,8 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*types.Quote, err
 	return &types.Quote{
 		Symbol:    quoteResp.Quotes.Quote.Symbol,
 		Exchange:  "tradier",
-		Bid:       decimal.NewFromFloat(quoteResp.Quotes.Quote.Bid),
-		Ask:       decimal.NewFromFloat(quoteResp.Quotes.Quote.Ask),
+		BidPrice:  decimal.NewFromFloat(quoteResp.Quotes.Quote.Bid),
+		AskPrice:  decimal.NewFromFloat(quoteResp.Quotes.Quote.Ask),
 		BidSize:   decimal.NewFromInt(int64(quoteResp.Quotes.Quote.BidSize)),
 		AskSize:   decimal.NewFromInt(int64(quoteResp.Quotes.Quote.AskSize)),
 		Timestamp: time.Now(),
@@ -493,11 +496,12 @@ func (c *Client) GetOptionChain(ctx context.Context, symbol string, expiration s
 	contracts := make([]*types.OptionContract, 0)
 	for _, exp := range chainResp.Options.Expiration {
 		for _, opt := range exp.Option {
+			expDate, _ := time.Parse("2006-01-02", opt.ExpirationDate)
 			contracts = append(contracts, &types.OptionContract{
-				Symbol:     opt.Symbol,
-				Strike:     decimal.NewFromFloat(opt.Strike),
-				Type:       opt.Type,
-				Expiration: opt.ExpirationDate,
+				Symbol:            opt.Symbol,
+				StrikePrice:      decimal.NewFromFloat(opt.Strike),
+				OptionType:       opt.Type,
+				ExpirationDate:   expDate,
 			})
 		}
 	}
@@ -526,16 +530,14 @@ func (c *Client) GetOptionQuote(ctx context.Context, symbol string) (*types.Opti
 
 	opt := optionResp.Options.Option[0]
 	return &types.OptionQuote{
-		Symbol:        opt.Symbol,
-		Bid:           decimal.NewFromFloat(opt.Bid),
-		Ask:           decimal.NewFromFloat(opt.Ask),
-		Strike:        decimal.NewFromFloat(opt.Strike),
-		Delta:         decimal.NewFromFloat(opt.Delta),
-		Gamma:         decimal.NewFromFloat(opt.Gamma),
-		Theta:         decimal.NewFromFloat(opt.Theta),
-		Vega:          decimal.NewFromFloat(opt.Vega),
-		ImpliedVol:    decimal.NewFromFloat(opt.Vega),
-		Underlying:    symbol,
+		Symbol:             opt.Symbol,
+		BidPrice:          decimal.NewFromFloat(opt.Bid),
+		AskPrice:          decimal.NewFromFloat(opt.Ask),
+		Delta:             decimal.NewFromFloat(opt.Delta),
+		Gamma:             decimal.NewFromFloat(opt.Gamma),
+		Theta:             decimal.NewFromFloat(opt.Theta),
+		Vega:              decimal.NewFromFloat(opt.Vega),
+		ImpliedVolatility: decimal.NewFromFloat(opt.Vega),
 	}, nil
 }
 
@@ -560,14 +562,14 @@ func (c *Client) GetHistory(ctx context.Context, start, end time.Time) ([]*types
 		amount, _ := strconv.ParseFloat(t.Amount, 64)
 		quantity, _ := strconv.ParseFloat(t.Quantity, 64)
 		price, _ := strconv.ParseFloat(t.Price, 64)
+		date, _ := time.Parse("2006-01-02", t.Date)
 
 		transactions[i] = &types.Transaction{
 			ID:          t.ID,
 			AccountID:   t.AccountID,
-			Date:        t.Date,
+			Date:        date,
 			Type:        t.Type,
 			Symbol:      t.Symbol,
-			Description: t.Description,
 			Amount:      decimal.NewFromFloat(amount),
 			Quantity:    decimal.NewFromFloat(quantity),
 			Price:       decimal.NewFromFloat(price),
@@ -643,23 +645,23 @@ func (c *Client) mapOrderType(orderType types.OrderType) string {
 
 func (c *Client) mapDuration(tif types.TimeInForce) string {
 	switch tif {
-	case types.TimeInForceDay:
-		return "day"
 	case types.TimeInForceGTC:
 		return "gtc"
 	case types.TimeInForceIOC:
 		return "ioc"
 	case types.TimeInForceFOK:
 		return "fok"
+	case types.TimeInForceGTX:
+		return "gtx"
 	default:
 		return "gtc"
 	}
 }
 
 func (c *Client) parseOrder(order *Order) *types.Order {
-	side := types.SideBuy
+	side := types.OrderSideBuy
 	if strings.ToLower(order.Side) == "sell" {
-		side = types.SideSell
+		side = types.OrderSideSell
 	}
 
 	orderType := types.OrderTypeMarket
@@ -674,16 +676,19 @@ func (c *Client) parseOrder(order *Order) *types.Order {
 
 	duration := types.TimeInForceGTC
 	switch strings.ToLower(order.Duration) {
-	case "day":
-		duration = types.TimeInForceDay
 	case "gtc":
 		duration = types.TimeInForceGTC
+	case "ioc":
+		duration = types.TimeInForceIOC
+	case "fok":
+		duration = types.TimeInForceFOK
 	}
 
 	createDate, _ := time.Parse("2006-01-02T15:04:05Z", order.CreateDate)
+	orderID, _ := uuid.Parse(order.ID)
 
 	return &types.Order{
-		ID:              order.ID,
+		ID:              orderID,
 		Symbol:          order.Symbol,
 		Exchange:        "tradier",
 		Side:           side,
@@ -710,13 +715,13 @@ func (c *Client) parseOrderStatus(status string) types.OrderStatus {
 	case "filled":
 		return types.OrderStatusFilled
 	case "cancelled", "canceled":
-		return types.OrderStatusCanceled
+		return types.OrderStatusCancelled
 	case "expired":
 		return types.OrderStatusExpired
 	case "rejected":
 		return types.OrderStatusRejected
 	default:
-		return types.OrderStatusUnknown
+		return types.OrderStatus(status)
 	}
 }
 

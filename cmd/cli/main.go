@@ -2,7 +2,10 @@ package main
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"math"
+	"math/rand"
 	"os"
 	"os/signal"
 	"runtime"
@@ -645,16 +648,117 @@ func runBacktest(exchange, strategy, symbol, timeframe, startDate, endDate strin
 		"timeframe", timeframe,
 	)
 
-	report := &types.PnLReport{
-		TotalTrades:     150,
-		WinningTrades:   95,
-		LosingTrades:    55,
-		TotalPnL:        decimal.NewFromFloat(1234.56),
-		WinRate:         decimal.NewFromFloat(0.63),
-		MaxDrawdown:     decimal.NewFromFloat(0.08),
-		SharpeRatio:     decimal.NewFromFloat(1.45),
-		ProfitFactor:    decimal.NewFromFloat(1.85),
+	ctx := context.Background()
+
+	ex, err := exchanges.New(exchange, exchanges.ExchangeConfig{})
+	if err != nil {
+		return fmt.Errorf("failed to create exchange: %w", err)
 	}
+
+	btEngine, err := initBacktestEngine(ctx, ex, strategy, symbol, timeframe, startDate, endDate, initialBalance)
+	if err != nil {
+		return fmt.Errorf("failed to initialize backtest: %w", err)
+	}
+
+	report, err := btEngine.Run(ctx)
+	if err != nil {
+		return fmt.Errorf("backtest failed: %w", err)
+	}
+
+	printBacktestReport(report, exchange, strategy, symbol, timeframe)
+
+	if output != "" {
+		if err := saveBacktestReport(report, output); err != nil {
+			logger.Warn("Failed to save report", "error", err)
+		}
+	}
+
+	return nil
+}
+
+func initBacktestEngine(ctx context.Context, ex *exchanges.Exchange, strategy, symbol, timeframe, startDate, endDate string, initialBalance float64) (*backtestEngine, error) {
+	bt := &backtestEngine{
+		exchange:        ex,
+		initialBalance:  decimal.NewFromFloat(initialBalance),
+		balance:         decimal.NewFromFloat(initialBalance),
+		trades:          make([]*types.Trade, 0),
+		positions:       make(map[string]*types.Position),
+		orders:         make([]*types.Order, 0),
+		equityCurve:    make([]float64, 0),
+	}
+
+	if symbol == "" {
+		symbol = "BTCUSDT"
+	}
+	bt.symbol = symbol
+
+	var startTime, endTime time.Time
+	if startDate != "" {
+		startTime, _ = time.Parse("2006-01-02", startDate)
+	} else {
+		startTime = time.Now().AddDate(0, -6, 0)
+	}
+
+	if endDate != "" {
+		endTime, _ = time.Parse("2006-01-02", endDate)
+	} else {
+		endTime = time.Now()
+	}
+
+	bt.startTime = startTime
+	bt.endTime = endTime
+
+	candles, err := ex.GetCandles(symbol, types.Timeframe(timeframe), 1000)
+	if err != nil {
+		logger.Warn("Failed to get candles, using synthetic data", "error", err)
+		candles = generateSyntheticCandles(symbol, timeframe, 1000)
+	}
+	bt.candles = candles
+
+	bt.strategy = createStrategyFromName(strategy, symbol, timeframe)
+
+	return bt, nil
+}
+
+type backtestEngine struct {
+	exchange        *exchanges.Exchange
+	symbol          string
+	timeframe       string
+	startTime       time.Time
+	endTime         time.Time
+	initialBalance  decimal.Decimal
+	balance         decimal.Decimal
+	trades          []*types.Trade
+	positions       map[string]*types.Position
+	orders          []*types.Order
+	equityCurve     []float64
+	candles         []*types.Candle
+	strategy        strategies.Strategy
+	mu              sync.Mutex
+}
+
+func (bt *backtestEngine) Run(ctx context.Context) (*types.PnLReport, error) {
+	logger.Info("Running backtest simulation...",
+		"candles", len(bt.candles),
+		"period", bt.endTime.Sub(bt.startTime).Hours()/24, "days",
+	)
+
+	bt.strategy.Init(ctx)
+
+	for i, candle := range bt.candles {
+		if i%100 == 0 {
+			logger.Debug("Processing candle", "index", i, "total", len(bt.candles))
+		}
+
+		bt.strategy.OnCandle(candle)
+
+		bt.updatePositions(candle.Close)
+		bt.recordEquity(candle.Close)
+
+		bt.processSignals()
+	}
+
+	report := bt.calculateReport()
 
 	logger.Info("Backtest completed",
 		"total_trades", report.TotalTrades,
@@ -663,7 +767,373 @@ func runBacktest(exchange, strategy, symbol, timeframe, startDate, endDate strin
 		"sharpe", report.SharpeRatio.String(),
 	)
 
-	return nil
+	return report, nil
+}
+
+func (bt *backtestEngine) updatePositions(currentPrice decimal.Decimal) {
+	for _, pos := range bt.positions {
+		pos.CurrentPrice = currentPrice
+		if pos.Side == types.PositionSideLong {
+			pos.UnrealizedPnL = currentPrice.Sub(pos.AvgEntryPrice).Mul(pos.Quantity)
+		} else {
+			pos.UnrealizedPnL = pos.AvgEntryPrice.Sub(currentPrice).Mul(pos.Quantity)
+		}
+	}
+}
+
+func (bt *backtestEngine) recordEquity(currentPrice decimal.Decimal) {
+	totalEquity := bt.balance
+
+	for _, pos := range bt.positions {
+		totalEquity = totalEquity.Add(pos.UnrealizedPnL)
+	}
+
+	bt.equityCurve = append(bt.equityCurve, totalEquity.InexactFloat64())
+}
+
+func (bt *backtestEngine) processSignals() {
+	signals := bt.strategy.GetSignals()
+	for _, signal := range signals {
+		bt.executeSignal(signal)
+	}
+}
+
+func (bt *backtestEngine) executeSignal(signal *types.Signal) {
+	candle := bt.candles[len(bt.candles)-1]
+	currentPrice := candle.Close
+
+	switch signal.Action {
+	case types.SignalActionBuy:
+		quantity := signal.Quantity
+		if quantity.IsZero() {
+			quantity = bt.balance.Div(currentPrice).Mul(decimal.NewFromFloat(0.1))
+		}
+
+		cost := quantity.Mul(currentPrice)
+		if cost.GreaterThan(bt.balance) {
+			return
+		}
+
+		bt.balance = bt.balance.Sub(cost)
+
+		pos := &types.Position{
+			Symbol:        bt.symbol,
+			Side:         types.PositionSideLong,
+			Quantity:     quantity,
+			AvgEntryPrice: currentPrice,
+			CurrentPrice: currentPrice,
+			Leverage:     decimal.NewFromInt(1),
+		}
+		bt.positions[bt.symbol] = pos
+
+		trade := &types.Trade{
+			Symbol:    bt.symbol,
+			Side:     types.OrderSideBuy,
+			Price:    currentPrice,
+			Quantity: quantity,
+		}
+		bt.trades = append(bt.trades, trade)
+
+	case types.SignalActionSell, types.SignalActionClose:
+		if pos, exists := bt.positions[bt.symbol]; exists {
+			proceeds := pos.Quantity.Mul(currentPrice)
+			bt.balance = bt.balance.Add(proceeds)
+
+			delete(bt.positions, bt.symbol)
+
+			trade := &types.Trade{
+				Symbol:    bt.symbol,
+				Side:     types.OrderSideSell,
+				Price:    currentPrice,
+				Quantity: pos.Quantity,
+			}
+			bt.trades = append(bt.trades, trade)
+		}
+	}
+}
+
+func (bt *backtestEngine) calculateReport() *types.PnLReport {
+	report := &types.PnLReport{}
+
+	if len(bt.equityCurve) > 0 {
+		report.TotalPnL = decimal.NewFromFloat(bt.equityCurve[len(bt.equityCurve)-1]).
+			Sub(bt.initialBalance)
+	}
+
+	report.TotalTrades = len(bt.trades)
+
+	var winningTrades, losingTrades int
+	var totalWin, totalLoss decimal.Decimal
+
+	for i := 0; i < len(bt.trades)-1; i += 2 {
+		if i+1 >= len(bt.trades) {
+			break
+		}
+
+		buyPrice := bt.trades[i].Price
+		sellPrice := bt.trades[i+1].Price
+		pnl := sellPrice.Sub(buyPrice)
+
+		if pnl.IsPositive() {
+			winningTrades++
+			totalWin = totalWin.Add(pnl)
+		} else {
+			losingTrades++
+			totalLoss = totalLoss.Add(pnl.Abs())
+		}
+	}
+
+	report.WinningTrades = winningTrades
+	report.LosingTrades = losingTrades
+
+	if winningTrades+losingTrades > 0 {
+		report.WinRate = decimal.NewFromInt(int64(winningTrades)).
+			Div(decimal.NewFromInt(int64(winningTrades + losingTrades)))
+	}
+
+	if winningTrades > 0 {
+		report.AvgWin = totalWin.Div(decimal.NewFromInt(int64(winningTrades)))
+	}
+	if losingTrades > 0 {
+		report.AvgLoss = totalLoss.Div(decimal.NewFromInt(int64(losingTrades)))
+	}
+
+	if !totalLoss.IsZero() {
+		report.ProfitFactor = totalWin.Div(totalLoss)
+	}
+
+	report.MaxDrawdown = bt.calculateMaxDrawdown()
+
+	if len(bt.equityCurve) > 1 {
+		returns := bt.calculateReturns()
+		report.SharpeRatio = bt.calculateSharpeRatio(returns)
+		report.SortinoRatio = bt.calculateSortinoRatio(returns)
+	}
+
+	report.MaxConsecutiveWins = bt.calculateMaxConsecutive(bt.trades, true)
+	report.MaxConsecutiveLoss = bt.calculateMaxConsecutive(bt.trades, false)
+
+	return report
+}
+
+func (bt *backtestEngine) calculateMaxDrawdown() decimal.Decimal {
+	if len(bt.equityCurve) < 2 {
+		return decimal.Zero
+	}
+
+	var maxDrawdown, peak decimal.Decimal
+	peak = decimal.NewFromFloat(bt.equityCurve[0])
+
+	for _, equity := range bt.equityCurve[1:] {
+		current := decimal.NewFromFloat(equity)
+		if current.GreaterThan(peak) {
+			peak = current
+		}
+		drawdown := peak.Sub(current)
+		if drawdown.GreaterThan(maxDrawdown) {
+			maxDrawdown = drawdown
+		}
+	}
+
+	if peak.IsZero() {
+		return decimal.Zero
+	}
+
+	return maxDrawdown.Div(peak)
+}
+
+func (bt *backtestEngine) calculateReturns() []decimal.Decimal {
+	if len(bt.equityCurve) < 2 {
+		return nil
+	}
+
+	returns := make([]decimal.Decimal, len(bt.equityCurve)-1)
+	for i := 1; i < len(bt.equityCurve); i++ {
+		prev := decimal.NewFromFloat(bt.equityCurve[i-1])
+		curr := decimal.NewFromFloat(bt.equityCurve[i])
+		if !prev.IsZero() {
+			returns[i-1] = curr.Sub(prev).Div(prev)
+		}
+	}
+
+	return returns
+}
+
+func (bt *backtestEngine) calculateSharpeRatio(returns []decimal.Decimal) decimal.Decimal {
+	if len(returns) < 2 {
+		return decimal.Zero
+	}
+
+	var mean, sumSqDiff decimal.Decimal
+	for _, r := range returns {
+		mean = mean.Add(r)
+		sumSqDiff = sumSqDiff.Add(r.Mul(r))
+	}
+	mean = mean.Div(decimal.NewFromInt(int64(len(returns))))
+
+	variance := sumSqDiff.Div(decimal.NewFromInt(int64(len(returns)))).Sub(mean.Mul(mean))
+	stdDev := decimal.NewFromFloat(math.Sqrt(variance.InexactFloat64()))
+
+	if stdDev.IsZero() {
+		return decimal.Zero
+	}
+
+	riskFreeRate := decimal.NewFromFloat(0.02).Div(decimal.NewFromInt(252))
+	return mean.Sub(riskFreeRate).Div(stdDev).Mul(decimal.NewFromFloat(math.Sqrt(252)))
+}
+
+func (bt *backtestEngine) calculateSortinoRatio(returns []decimal.Decimal) decimal.Decimal {
+	if len(returns) < 2 {
+		return decimal.Zero
+	}
+
+	var mean, negSumSqDiff decimal.Decimal
+	negCount := 0
+	for _, r := range returns {
+		mean = mean.Add(r)
+		if r.LessThan(decimal.Zero) {
+			negSumSqDiff = negSumSqDiff.Add(r.Mul(r))
+			negCount++
+		}
+	}
+	mean = mean.Div(decimal.NewFromInt(int64(len(returns))))
+
+	if negCount == 0 {
+		return decimal.Zero
+	}
+
+	downsideDev := decimal.NewFromFloat(math.Sqrt(negSumSqDiff.Div(decimal.NewFromInt(int64(negCount))).InexactFloat64()))
+	if downsideDev.IsZero() {
+		return decimal.Zero
+	}
+
+	riskFreeRate := decimal.NewFromFloat(0.02).Div(decimal.NewFromInt(252))
+	return mean.Sub(riskFreeRate).Div(downsideDev).Mul(decimal.NewFromFloat(math.Sqrt(252)))
+}
+
+func (bt *backtestEngine) calculateMaxConsecutive(trades []*types.Trade, wins bool) int {
+	if len(trades) < 2 {
+		return 0
+	}
+
+	maxConsecutive, current := 0, 0
+	for i := 0; i < len(trades)-1; i += 2 {
+		buyPrice := trades[i].Price
+		sellPrice := trades[i+1].Price
+		isWin := sellPrice.GreaterThan(buyPrice)
+
+		if isWin == wins {
+			current++
+			if current > maxConsecutive {
+				maxConsecutive = current
+			}
+		} else {
+			current = 0
+		}
+	}
+
+	return maxConsecutive
+}
+
+func createStrategyFromName(name, symbol, timeframe string) strategies.Strategy {
+	switch strings.ToLower(name) {
+	case "grid":
+		return strategies.NewGridStrategy(symbol, 10, 0.01, 0.01)
+	case "dca":
+		return strategies.NewDCAStrategy(symbol, 100.0, 24*time.Hour)
+	case "trend", "trend_following":
+		return strategies.NewTrendStrategy(symbol, 10, 20, 9)
+	case "scalping", "scalper":
+		return strategies.NewScalperStrategy(symbol, 0.005, 0.002)
+	case "arbitrage":
+		return strategies.NewArbitrageStrategy()
+	case "momentum":
+		return strategies.NewMomentumStrategy(symbol, map[string]interface{}{
+			"rsi_period": 14.0,
+		})
+	case "breakout":
+		return strategies.NewBreakoutStrategy(symbol, map[string]interface{}{
+			"lookback": 20.0,
+			"volume_period": 20.0,
+		})
+	default:
+		return strategies.NewGridStrategy(symbol, 10, 0.01, 0.01)
+	}
+}
+
+func generateSyntheticCandles(symbol, timeframe string, count int) []*types.Candle {
+	candles := make([]*types.Candle, count)
+	basePrice := 44000.0
+
+	if strings.Contains(symbol, "ETH") {
+		basePrice = 2200.0
+	} else if strings.Contains(symbol, "SOL") {
+		basePrice = 100.0
+	}
+
+	for i := 0; i < count; i++ {
+		volatility := 0.002
+		change := (rand.Float64() - 0.5) * 2 * volatility * basePrice
+
+		open := basePrice
+		close := open + change
+		high := math.Max(open, close) * (1 + rand.Float64()*0.005)
+		low := math.Min(open, close) * (1 - rand.Float64()*0.005)
+		volume := basePrice * (0.5 + rand.Float64())
+
+		candle := &types.Candle{
+			Symbol:     symbol,
+			Timeframe:  timeframe,
+			Open:       decimal.NewFromFloat(open),
+			High:       decimal.NewFromFloat(high),
+			Low:        decimal.NewFromFloat(low),
+			Close:      decimal.NewFromFloat(close),
+			Volume:     decimal.NewFromFloat(volume),
+			Timestamp:  time.Now().Add(-time.Duration(count-i) * time.Hour),
+		}
+		candles[i] = candle
+		basePrice = close
+	}
+
+	return candles
+}
+
+func printBacktestReport(report *types.PnLReport, exchange, strategy, symbol, timeframe string) {
+	fmt.Println()
+	fmt.Println("╔══════════════════════════════════════════════════════════════════════╗")
+	fmt.Println("║                     BACKTEST RESULTS                                  ║")
+	fmt.Println("╠══════════════════════════════════════════════════════════════════════╣")
+	fmt.Printf("║  Exchange:     %-50s║\n", exchange)
+	fmt.Printf("║  Strategy:      %-50s║\n", strategy)
+	fmt.Printf("║  Symbol:        %-50s║\n", symbol)
+	fmt.Printf("║  Timeframe:     %-50s║\n", timeframe)
+	fmt.Println("╠══════════════════════════════════════════════════════════════════════╣")
+	fmt.Printf("║  Total Trades:        %-47d║\n", report.TotalTrades)
+	fmt.Printf("║  Winning Trades:      %-47d║\n", report.WinningTrades)
+	fmt.Printf("║  Losing Trades:       %-47d║\n", report.LosingTrades)
+	fmt.Printf("║  Win Rate:            %-47s║\n", report.WinRate.Mul(decimal.NewFromInt(100)).StringFixed(2)+"%")
+	fmt.Println("╠══════════════════════════════════════════════════════════════════════╣")
+	fmt.Printf("║  Total P&L:           %-47s║\n", "$"+report.TotalPnL.StringFixed(2))
+	fmt.Printf("║  Average Win:         %-47s║\n", "$"+report.AvgWin.StringFixed(2))
+	fmt.Printf("║  Average Loss:        %-47s║\n", "$"+report.AvgLoss.StringFixed(2))
+	fmt.Printf("║  Profit Factor:       %-47s║\n", report.ProfitFactor.StringFixed(2))
+	fmt.Println("╠══════════════════════════════════════════════════════════════════════╣")
+	fmt.Printf("║  Sharpe Ratio:        %-47s║\n", report.SharpeRatio.StringFixed(2))
+	fmt.Printf("║  Sortino Ratio:       %-47s║\n", report.SortinoRatio.StringFixed(2))
+	fmt.Printf("║  Max Drawdown:        %-47s║\n", report.MaxDrawdown.Mul(decimal.NewFromInt(100)).StringFixed(2)+"%")
+	fmt.Println("╠══════════════════════════════════════════════════════════════════════╣")
+	fmt.Printf("║  Max Consecutive Wins:  %-46d║\n", report.MaxConsecutiveWins)
+	fmt.Printf("║  Max Consecutive Loss:   %-46d║\n", report.MaxConsecutiveLoss)
+	fmt.Println("╚══════════════════════════════════════════════════════════════════════╝")
+}
+
+func saveBacktestReport(report *types.PnLReport, output string) error {
+	data, err := json.MarshalIndent(report, "", "  ")
+	if err != nil {
+		return err
+	}
+
+	return os.WriteFile(output, data, 0644)
 }
 
 func initConfigFile() error {

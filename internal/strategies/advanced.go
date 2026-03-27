@@ -11,8 +11,11 @@ import (
 )
 
 type TWAPStrategy struct {
-	BaseStrategy
+	*BaseStrategy
 	mu             sync.RWMutex
+	symbol         string
+	engine         engineRef
+	sliceSize      decimal.Decimal
 	targetQuantity decimal.Decimal
 	executedQty    decimal.Decimal
 	remainingQty   decimal.Decimal
@@ -26,9 +29,16 @@ type TWAPStrategy struct {
 	isComplete     bool
 }
 
+type engineRef interface {
+	SubmitOrder(order *types.Order) error
+	CancelOrder(orderID string) error
+	GetPositions() []*types.Position
+}
+
 func NewTWAPStrategy(symbol string, params map[string]interface{}) *TWAPStrategy {
 	s := &TWAPStrategy{
-		BaseStrategy: *NewBaseStrategy("twap", symbol),
+		BaseStrategy: NewBaseStrategy(symbol, "twap"),
+		symbol:      symbol,
 	}
 
 	if v, ok := params["quantity"]; ok {
@@ -67,7 +77,7 @@ func (s *TWAPStrategy) OnStart(ctx context.Context) error {
 	return nil
 }
 
-func (s *TWAPStrategy) OnTick(ctx context.Context, tick *types.Tick) error {
+func (s *TWAPStrategy) OnTick(ctx context.Context, tick *types.Ticker) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -150,8 +160,10 @@ func (s *TWAPStrategy) GetProgress() (executed, remaining, target decimal.Decima
 }
 
 type VWAPStrategy struct {
-	BaseStrategy
+	*BaseStrategy
 	mu             sync.RWMutex
+	symbol         string
+	engine         engineRef
 	targetQuantity decimal.Decimal
 	executedQty    decimal.Decimal
 	maxPrice       decimal.Decimal
@@ -165,7 +177,8 @@ type VWAPStrategy struct {
 
 func NewVWAPStrategy(symbol string, params map[string]interface{}) *VWAPStrategy {
 	s := &VWAPStrategy{
-		BaseStrategy: *NewBaseStrategy("vwap", symbol),
+		BaseStrategy: NewBaseStrategy(symbol, "vwap"),
+		symbol:      symbol,
 	}
 
 	if v, ok := params["quantity"]; ok {
@@ -257,8 +270,10 @@ func (s *VWAPStrategy) UpdateWeights(volumes []decimal.Decimal) {
 }
 
 type BracketOrder struct {
-	BaseStrategy
+	*BaseStrategy
 	mu           sync.RWMutex
+	symbol       string
+	engine       engineRef
 	parentOrder  *types.Order
 	entryOrder   *types.Order
 	stopLoss     *types.Order
@@ -270,7 +285,8 @@ type BracketOrder struct {
 
 func NewBracketStrategy(symbol string, params map[string]interface{}) *BracketOrder {
 	s := &BracketOrder{
-		BaseStrategy: *NewBaseStrategy("bracket", symbol),
+		BaseStrategy: NewBaseStrategy(symbol, "bracket"),
+		symbol:      symbol,
 	}
 
 	if v, ok := params["entry_price"]; ok {
@@ -367,8 +383,10 @@ func (b *BracketOrder) OnStop(ctx context.Context) error {
 }
 
 type TrailingStopStrategy struct {
-	BaseStrategy
+	*BaseStrategy
 	mu            sync.RWMutex
+	symbol        string
+	engine        engineRef
 	position      *types.Position
 	trailingPct   decimal.Decimal
 	highestPrice  decimal.Decimal
@@ -378,7 +396,8 @@ type TrailingStopStrategy struct {
 
 func NewTrailingStopStrategy(symbol string, params map[string]interface{}) *TrailingStopStrategy {
 	s := &TrailingStopStrategy{
-		BaseStrategy: *NewBaseStrategy("trailing_stop", symbol),
+		BaseStrategy: NewBaseStrategy(symbol, "trailing_stop"),
+		symbol:       symbol,
 	}
 
 	if v, ok := params["trailing_pct"]; ok {
@@ -403,7 +422,7 @@ func (t *TrailingStopStrategy) OnStart(ctx context.Context) error {
 
 			logger.Info("Trailing stop activated",
 				"symbol", t.symbol,
-				"entry_price", pos.EntryPrice,
+				"entry_price", pos.AvgEntryPrice,
 				"current_price", pos.CurrentPrice,
 				"trailing_pct", t.trailingPct,
 			)
@@ -413,7 +432,7 @@ func (t *TrailingStopStrategy) OnStart(ctx context.Context) error {
 	return nil
 }
 
-func (t *TrailingStopStrategy) OnTick(ctx context.Context, tick *types.Tick) error {
+func (t *TrailingStopStrategy) OnTick(ctx context.Context, tick *types.Ticker) error {
 	t.mu.Lock()
 	defer t.mu.Unlock()
 

@@ -256,9 +256,7 @@ func (i *Indicators) ADX(candles []*types.Candle, period int) decimal.Decimal {
 
 	dx := plusDI.Sub(minusDI).Abs().Div(diSum).Mul(decimal.NewFromInt(100))
 
-	adx := i.EMAFromValues(dx, period)
-
-	return adx
+	return dx
 }
 
 func (i *Indicators) CCI(candles []*types.Candle, period int) decimal.Decimal {

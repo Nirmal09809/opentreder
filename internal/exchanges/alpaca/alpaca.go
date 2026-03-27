@@ -233,14 +233,10 @@ func (c *Client) GetAccount(ctx context.Context) (*types.Account, error) {
 	}
 
 	account := &types.Account{
-		AccountID:       accountResp.ID,
-		Exchange:        "alpaca",
-		Currency:        accountResp.Currency,
-		BuyingPower:     decimal.RequireFromString(accountResp.BuyingPower),
-		Cash:            decimal.RequireFromString(accountResp.Cash),
-		PortfolioValue:  decimal.RequireFromString(accountResp.PortfolioValue),
-		PatternDayTrader: accountResp.PatternDayTrader,
-		TradingEnabled:  !accountResp.TradingBlocked && !accountResp.AccountBlocked,
+		AccountID:      accountResp.ID,
+		Exchange:       types.ExchangeAlpaca,
+		Currency:       accountResp.Currency,
+		TradingEnabled: !accountResp.TradingBlocked && !accountResp.AccountBlocked,
 	}
 
 	c.accountMu.Lock()
@@ -419,10 +415,9 @@ func (c *Client) GetAsset(ctx context.Context, symbol string) (*types.Asset, err
 	}
 
 	return &types.Asset{
-		ID:           assetResp.ID,
 		Symbol:       assetResp.Symbol,
-		Exchange:     assetResp.Exchange,
-		AssetClass:   assetResp.AssetClass,
+		Exchange:     types.ExchangeAlpaca,
+		AssetType:   types.AssetType(assetResp.AssetClass),
 		Name:         assetResp.Name,
 		Status:       assetResp.Status,
 		Tradable:     assetResp.Tradable,
@@ -463,9 +458,8 @@ func (c *Client) GetBars(ctx context.Context, symbol string, timeframe string, s
 			Low:       decimal.NewFromFloat(barResp.Low),
 			Close:     decimal.NewFromFloat(barResp.Close),
 			Volume:    decimal.NewFromInt(barResp.Volume),
-			TradeCount: barResp.TradeCount,
-			VWAP:      decimal.NewFromFloat(barResp.VWAP),
-			Timestamp: barResp.Timestamp,
+			StartTime: barResp.Timestamp,
+			EndTime:   barResp.Timestamp.Add(time.Minute),
 		})
 	}
 
@@ -496,8 +490,8 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*types.Quote, err
 	return &types.Quote{
 		Symbol:    symbol,
 		Exchange:  "alpaca",
-		Bid:       decimal.NewFromFloat(q.BidPrice),
-		Ask:       decimal.NewFromFloat(q.AskPrice),
+		BidPrice:  decimal.NewFromFloat(q.BidPrice),
+		AskPrice:  decimal.NewFromFloat(q.AskPrice),
 		BidSize:   decimal.NewFromFloat(q.BidSize),
 		AskSize:   decimal.NewFromFloat(q.AskSize),
 		Timestamp: q.Timestamp,
@@ -525,13 +519,14 @@ func (c *Client) GetTrade(ctx context.Context, symbol string) (*types.Trade, err
 	}
 
 	t := trades[0]
+	tradeID, _ := uuid.Parse(t.ID)
 	return &types.Trade{
-		ID:        t.ID,
+		ID:        tradeID,
 		Symbol:    symbol,
 		Exchange:  "alpaca",
 		Price:     decimal.NewFromFloat(t.Price),
-		Size:      decimal.NewFromInt(int64(t.Size)),
-		Side:      types.SideBuy,
+		Quantity: decimal.NewFromInt(int64(t.Size)),
+		Side:     types.OrderSideBuy,
 		Timestamp: t.Timestamp,
 	}, nil
 }
@@ -582,13 +577,12 @@ func (c *Client) GetCalendar(ctx context.Context, start, end time.Time) ([]*type
 
 	days := make([]*types.CalendarDay, len(calendarResp))
 	for i, cal := range calendarResp {
-		openTime, _ := time.Parse("15:04", cal.Open)
-		closeTime, _ := time.Parse("15:04", cal.Close)
-
 		days[i] = &types.CalendarDay{
-			Date:     cal.Date,
-			OpenTime: openTime,
-			CloseTime: closeTime,
+			Date:      cal.Date,
+			Exchange:  "alpaca",
+			Open:      cal.Open,
+			Close:     cal.Close,
+			IsTrading: true,
 		}
 	}
 
@@ -728,17 +722,16 @@ func (c *Client) generateSignature(method, path string, timestamp int64, body io
 }
 
 func (c *Client) parseOrder(resp *OrderResponse) *types.Order {
+	orderID, _ := uuid.Parse(resp.ID)
 	order := &types.Order{
-		ID:            resp.ID,
+		ID:            orderID,
 		ClientOrderID: resp.ClientOrderID,
 		Symbol:        resp.Symbol,
 		Exchange:      "alpaca",
-		Side:          types.Side(strings.ToUpper(resp.Side)),
+		Side:          types.OrderSide(strings.ToLower(resp.Side)),
 		Type:          types.OrderType(strings.ToLower(resp.Type)),
 		Quantity:      decimal.RequireFromString(resp.Qty),
 		FilledQuantity: decimal.RequireFromString(resp.FilledQty),
-		Price:         decimal.RequireFromString(resp.LimitPrice),
-		StopPrice:     decimal.RequireFromString(resp.StopPrice),
 		AvgFillPrice:  decimal.RequireFromString(resp.FilledAvgPrice),
 		TimeInForce:   types.TimeInForce(resp.TimeInForce),
 		Status:        c.parseOrderStatus(resp.Status),
@@ -747,13 +740,12 @@ func (c *Client) parseOrder(resp *OrderResponse) *types.Order {
 	}
 
 	if !resp.FilledAt.IsZero() {
-		order.FilledAt = resp.FilledAt
-	}
-	if !resp.ExpiredAt.IsZero() {
-		order.ExpiredAt = resp.ExpiredAt
+		filledAt := resp.FilledAt
+		order.FilledAt = &filledAt
 	}
 	if !resp.CanceledAt.IsZero() {
-		order.CanceledAt = resp.CanceledAt
+		canceledAt := resp.CanceledAt
+		order.CancelledAt = &canceledAt
 	}
 
 	return order
@@ -769,41 +761,31 @@ func (c *Client) parseOrderStatus(status string) types.OrderStatus {
 		return types.OrderStatusPartiallyFilled
 	case "filled":
 		return types.OrderStatusFilled
-	case "done_for_day":
-		return types.OrderStatusDoneForDay
 	case "canceled":
-		return types.OrderStatusCanceled
+		return types.OrderStatusCancelled
 	case "expired":
 		return types.OrderStatusExpired
-	case "replaced":
-		return types.OrderStatusReplaced
-	case "pending_cancel":
-		return types.OrderStatusPendingCancel
-	case "pending_replace":
-		return types.OrderStatusPendingReplace
-	case "accepted":
-		return types.OrderStatusAccepted
-	case "pending_new":
-		return types.OrderStatusPending
+	case "rejected":
+		return types.OrderStatusRejected
 	default:
-		return types.OrderStatusUnknown
+		return types.OrderStatus(status)
 	}
 }
 
 func (c *Client) parsePosition(resp *PositionResponse) *types.Position {
+	side := types.PositionSideLong
+	if strings.ToLower(resp.Side) == "short" {
+		side = types.PositionSideShort
+	}
 	return &types.Position{
 		Symbol:         resp.Symbol,
 		Exchange:       "alpaca",
-		AssetClass:     resp.AssetClass,
 		Quantity:       decimal.RequireFromString(resp.Qty),
 		AvgEntryPrice:  decimal.RequireFromString(resp.AvgEntryPrice),
 		CurrentPrice:   decimal.RequireFromString(resp.CurrentPrice),
-		MarketValue:    decimal.RequireFromString(resp.MarketValue),
-		CostBasis:      decimal.RequireFromString(resp.CostBasis),
 		UnrealizedPnL:  decimal.RequireFromString(resp.UnrealizedPL),
 		RealizedPnL:    decimal.Zero,
-		Side:           types.Side(strings.ToLower(resp.Side)),
-		AssetID:        resp.AssetID,
+		Side:           side,
 	}
 }
 

@@ -58,6 +58,8 @@ type Strategy interface {
 	GetSignals() []*types.Signal
 	GetState() StrategyState
 	GetMetrics() StrategyMetrics
+	GetID() string
+	GetName() string
 }
 
 type StrategyMetrics struct {
@@ -347,12 +349,12 @@ func (t *TrendStrategy) OnCandle(candle *types.Candle) {
 	if fastMA.GreaterThan(slowMA) && t.position == nil {
 		signal = &types.Signal{
 			Action:  types.SignalActionBuy,
-			Reason:  fmt.Sprintf("Fast MA crossed above Slow MA (%.2f > %.2f)", fastMA, slowMA),
+			Reason:  fmt.Sprintf("Fast MA crossed above Slow MA (%s > %s)", fastMA.StringFixed(2), slowMA.StringFixed(2)),
 		}
 	} else if fastMA.LessThan(slowMA) && t.position != nil {
 		signal = &types.Signal{
 			Action:  types.SignalActionClose,
-			Reason:  fmt.Sprintf("Fast MA crossed below Slow MA (%.2f < %.2f)", fastMA, slowMA),
+			Reason:  fmt.Sprintf("Fast MA crossed below Slow MA (%s < %s)", fastMA.StringFixed(2), slowMA.StringFixed(2)),
 		}
 	}
 
@@ -398,12 +400,12 @@ func (s *ScalperStrategy) OnCandle(candle *types.Candle) {
 		if rsi.LessThan(decimal.NewFromInt(30)) {
 			s.AddSignal(&types.Signal{
 				Action: types.SignalActionBuy,
-				Reason: fmt.Sprintf("RSI oversold: %.2f", rsi),
+				Reason: fmt.Sprintf("RSI oversold: %s", rsi.StringFixed(2)),
 			})
 		} else if rsi.GreaterThan(decimal.NewFromInt(70)) {
 			s.AddSignal(&types.Signal{
 				Action: types.SignalActionSell,
-				Reason: fmt.Sprintf("RSI overbought: %.2f", rsi),
+				Reason: fmt.Sprintf("RSI overbought: %s", rsi.StringFixed(2)),
 			})
 		}
 	}
@@ -477,8 +479,8 @@ func (a *ArbitrageStrategy) CheckOpportunities() {
 			a.AddSignal(&types.Signal{
 				Symbol: symbol,
 				Action: types.SignalActionBuy,
-				Reason: fmt.Sprintf("Arbitrage: buy @ %s (%.2f), sell @ %s (%.2f), profit: %.2f%%",
-					bestBuy, minPrice, bestSell, maxPrice, profitMargin),
+				Reason: fmt.Sprintf("Arbitrage: buy @ %s (%s), sell @ %s (%s), profit: %s%%",
+					bestBuy, minPrice.StringFixed(2), bestSell, maxPrice.StringFixed(2), profitMargin.Mul(decimal.NewFromInt(100)).StringFixed(2)),
 			})
 		}
 	}
@@ -762,12 +764,12 @@ func (m *MeanReversionStrategy) OnCandle(candle *types.Candle) {
 	if m.position == nil && currentPrice.LessThanOrEqual(lowerBand) {
 		signal = &types.Signal{
 			Action: types.SignalActionBuy,
-			Reason: fmt.Sprintf("Price below lower band: %.2f < %.2f", currentPrice, lowerBand),
+			Reason: fmt.Sprintf("Price below lower band: %s < %s", currentPrice.StringFixed(2), lowerBand.StringFixed(2)),
 		}
 	} else if m.position != nil && currentPrice.GreaterThanOrEqual(upperBand) {
 		signal = &types.Signal{
 			Action: types.SignalActionClose,
-			Reason: fmt.Sprintf("Price above upper band: %.2f >= %.2f", currentPrice, upperBand),
+			Reason: fmt.Sprintf("Price above upper band: %s >= %s", currentPrice.StringFixed(2), upperBand.StringFixed(2)),
 		}
 	} else if m.position != nil {
 		profit := currentPrice.Sub(m.position.AvgEntryPrice)
@@ -862,14 +864,14 @@ func (b *BreakoutStrategy) OnCandle(candle *types.Candle) {
 		if currentPrice.GreaterThan(highestHigh) && candle.Volume.GreaterThan(avgVolume.Mul(b.volumeMultiplier)) {
 			signal = &types.Signal{
 				Action: types.SignalActionBuy,
-				Reason: fmt.Sprintf("Breakout above %.2f with volume %.2f > avg %.2f", highestHigh, candle.Volume, avgVolume),
+				Reason: fmt.Sprintf("Breakout above %s with volume %s > avg %s", highestHigh.StringFixed(2), candle.Volume.StringFixed(2), avgVolume.StringFixed(2)),
 			}
 		}
 	} else {
 		if currentPrice.LessThan(lowestLow) {
 			signal = &types.Signal{
 				Action: types.SignalActionClose,
-				Reason: fmt.Sprintf("Breakdown below %.2f", lowestLow),
+				Reason: fmt.Sprintf("Breakdown below %s", lowestLow.StringFixed(2)),
 			}
 		}
 	}
@@ -928,14 +930,14 @@ func (m *MomentumStrategy) OnCandle(candle *types.Candle) {
 		if rsi.LessThan(m.rsiOversold) && macdLine.GreaterThan(signalLine) {
 			signal = &types.Signal{
 				Action: types.SignalActionBuy,
-				Reason: fmt.Sprintf("RSI oversold (%.2f) and MACD bullish crossover", rsi),
+				Reason: fmt.Sprintf("RSI oversold (%s) and MACD bullish crossover", rsi.StringFixed(2)),
 			}
 		}
 	} else {
 		if rsi.GreaterThan(m.rsiOverbought) && macdLine.LessThan(signalLine) {
 			signal = &types.Signal{
 				Action: types.SignalActionClose,
-				Reason: fmt.Sprintf("RSI overbought (%.2f) and MACD bearish crossover", rsi),
+				Reason: fmt.Sprintf("RSI overbought (%s) and MACD bearish crossover", rsi.StringFixed(2)),
 			}
 		}
 	}
@@ -1065,7 +1067,7 @@ func (p *PairsTradingStrategy) OnCandle(candle *types.Candle) {
 			signal = &types.Signal{
 				Symbol: fmt.Sprintf("%s/%s", p.symbol1, p.symbol2),
 				Action: action,
-				Reason: fmt.Sprintf("%s: z-score %.2f beyond threshold", reason, zscore),
+				Reason: fmt.Sprintf("%s: z-score %s beyond threshold", reason, zscore.StringFixed(2)),
 			}
 		}
 	} else {
@@ -1073,7 +1075,7 @@ func (p *PairsTradingStrategy) OnCandle(candle *types.Candle) {
 			signal = &types.Signal{
 				Symbol: fmt.Sprintf("%s/%s", p.symbol1, p.symbol2),
 				Action: types.SignalActionClose,
-				Reason: fmt.Sprintf("Z-score %.2f converged to mean", zscore),
+				Reason: fmt.Sprintf("Z-score %s converged to mean", zscore.StringFixed(2)),
 			}
 		}
 	}

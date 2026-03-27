@@ -205,7 +205,7 @@ func (t *Transformer) splitHeads(x []float64, seqLen, numHeads, dK int) []float6
 	for h := 0; h < numHeads; h++ {
 		for i := 0; i < seqLen; i++ {
 			for j := 0; j < dK; j++ {
-				srcIdx := i*dModel + h*dK + j
+				srcIdx := i*t.config.DModel + h*dK + j
 				dstIdx := h*seqLen*dK + i*dK + j
 				if srcIdx < len(x) && dstIdx < len(result) {
 					result[dstIdx] = x[srcIdx]
@@ -398,9 +398,9 @@ func (t *Transformer) getAttentionMaps() [][]float64 {
 	return [][]float64{}
 }
 
-func applyReLU(x []float64, len int) []float64 {
-	result := make([]float64, len)
-	for i := 0; i < len && i < len(x); i++ {
+func applyReLU(x []float64, length int) []float64 {
+	result := make([]float64, length)
+	for i := 0; i < length && i < len(x); i++ {
 		if x[i] > 0 {
 			result[i] = x[i]
 		}

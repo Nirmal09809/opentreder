@@ -657,7 +657,7 @@ func (b *Brain) setCached(key, response string) {
 	b.cache.entries[key] = &CacheEntry{
 		Response:  response,
 		Timestamp: time.Now(),
-		TTL:       b.cache.entries[key].TTL,
+		TTL:       24 * time.Hour,
 	}
 }
 

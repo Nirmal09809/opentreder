@@ -244,7 +244,7 @@ func (m *LSTMModel) initBiases(size int) []float64 {
 }
 
 func randFloat64() float64 {
-	return float64(int64(^uint64(0)>>1) & int64(randUint64())) / float64(int64(1<<63))
+	return float64(int64(^uint64(0)>>1) & int64(randUint64())) / float64(math.MaxInt64)
 }
 
 func randUint64() uint64 {

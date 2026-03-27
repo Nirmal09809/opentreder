@@ -489,19 +489,17 @@ func (e *Exchange) GetTicker(symbol string) (*types.Ticker, error) {
 	e.rateLimiter.Wait()
 
 	ticker := &types.Ticker{
-		Symbol:             symbol,
-		Exchange:           types.Exchange(e.Name),
-		LastPrice:          decimal.NewFromFloat(44135.68),
-		BidPrice:           decimal.NewFromFloat(44135.00),
-		BidQty:             decimal.NewFromFloat(0.5),
-		AskPrice:           decimal.NewFromFloat(44136.00),
-		AskQty:             decimal.NewFromFloat(0.5),
-		Volume24h:          decimal.NewFromFloat(28500000000),
-		QuoteVolume24h:     decimal.NewFromFloat(28500000000),
+		Symbol:            symbol,
+		Exchange:          types.Exchange(e.Name),
+		LastPrice:         decimal.NewFromFloat(44135.68),
+		BidPrice:          decimal.NewFromFloat(44135.00),
+		AskPrice:          decimal.NewFromFloat(44136.00),
+		Volume24h:         decimal.NewFromFloat(28500000000),
+		QuoteVolume24h:    decimal.NewFromFloat(28500000000),
 		High24h:           decimal.NewFromFloat(44500),
 		Low24h:            decimal.NewFromFloat(43200),
-		PriceChange24h:    decimal.NewFromFloat(1000),
-		PriceChangePct24h: decimal.NewFromFloat(2.34),
+		PriceChange:       decimal.NewFromFloat(1000),
+		PriceChangePct:   decimal.NewFromFloat(2.34),
 		Timestamp:         time.Now(),
 	}
 
@@ -592,8 +590,8 @@ func (e *Exchange) GetOrderBook(symbol string, depth int) (*types.OrderBook, err
 		Symbol:    symbol,
 		Exchange:  types.Exchange(e.Name),
 		Timestamp: time.Now(),
-		Bids:      make([]types.OrderBookLevel, depth),
-		Asks:      make([]types.OrderBookLevel, depth),
+		Bids:      make([]types.PriceLevel, depth),
+		Asks:      make([]types.PriceLevel, depth),
 	}
 
 	basePrice := 44135.68
@@ -604,11 +602,11 @@ func (e *Exchange) GetOrderBook(symbol string, depth int) (*types.OrderBook, err
 	}
 
 	for i := 0; i < depth; i++ {
-		book.Bids[i] = types.OrderBookLevel{
+		book.Bids[i] = types.PriceLevel{
 			Price:    decimal.NewFromFloat(basePrice - float64(i)*0.5),
 			Quantity: decimal.NewFromFloat(float64(depth-i) * 0.1),
 		}
-		book.Asks[i] = types.OrderBookLevel{
+		book.Asks[i] = types.PriceLevel{
 			Price:    decimal.NewFromFloat(basePrice + float64(i)*0.5),
 			Quantity: decimal.NewFromFloat(float64(depth-i) * 0.1),
 		}

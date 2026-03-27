@@ -16,6 +16,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/gorilla/websocket"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
@@ -265,7 +266,7 @@ func (c *Client) PlaceOrder(ctx context.Context, req *types.Order) (*types.Order
 	}
 
 	direction := "BUY"
-	if req.Side == types.SideSell {
+	if req.Side == types.OrderSideSell {
 		direction = "SELL"
 	}
 
@@ -422,8 +423,8 @@ func (c *Client) GetQuote(ctx context.Context, symbol string) (*types.Quote, err
 	return &types.Quote{
 		Symbol:    symbol,
 		Exchange:  "forexcom",
-		Bid:       priceResp.Bid,
-		Ask:       priceResp.Offer,
+		BidPrice:  priceResp.Bid,
+		AskPrice:  priceResp.Offer,
 		Timestamp: priceResp.Time,
 	}, nil
 }
@@ -458,7 +459,8 @@ func (c *Client) GetBars(ctx context.Context, symbol string, timeframe string, s
 			Low:       c.Low,
 			Close:     c.Close,
 			Volume:    c.Volume,
-			Timestamp: c.Timestamp,
+			StartTime: c.Timestamp,
+			EndTime:   c.Timestamp.Add(time.Minute),
 		}
 	}
 
@@ -486,8 +488,8 @@ func (c *Client) GetCandles(ctx context.Context, symbol string, timeframe types.
 			Low:       bar.Low,
 			Close:     bar.Close,
 			Volume:    bar.Volume,
-			Timeframe: timeframe,
-			Timestamp: bar.Timestamp,
+			Timeframe: string(timeframe),
+			Timestamp: bar.StartTime,
 		}
 	}
 
@@ -572,14 +574,16 @@ func (c *Client) mapOrderType(orderType types.OrderType) string {
 
 func (c *Client) mapTimeInForce(tif types.TimeInForce) string {
 	switch tif {
-	case types.TimeInForceDay:
-		return "DAY"
 	case types.TimeInForceGTC:
 		return "GTC"
 	case types.TimeInForceIOC:
 		return "IOC"
 	case types.TimeInForceFOK:
 		return "FOK"
+	case types.TimeInForceGTX:
+		return "GTX"
+	case types.TimeInForceGTT:
+		return "GTT"
 	default:
 		return "GTC"
 	}
@@ -605,9 +609,9 @@ func (c *Client) mapTimeframe(tf types.Timeframe) string {
 }
 
 func (c *Client) parseOrder(resp *OrderResponse) *types.Order {
-	side := types.SideBuy
+	side := types.OrderSideBuy
 	if strings.ToUpper(resp.Direction) == "SELL" {
-		side = types.SideSell
+		side = types.OrderSideSell
 	}
 
 	orderType := types.OrderTypeMarket
@@ -620,21 +624,21 @@ func (c *Client) parseOrder(resp *OrderResponse) *types.Order {
 		orderType = types.OrderTypeStopLimit
 	}
 
+	orderID, _ := uuid.Parse(resp.OrderId)
+
 	return &types.Order{
-		ID:             resp.OrderId,
+		ID:             orderID,
 		Symbol:         resp.MarketName,
 		Exchange:       "forexcom",
-		Side:          side,
-		Type:          orderType,
-		Quantity:      resp.Quantity,
+		Side:           side,
+		Type:           orderType,
+		Quantity:       resp.Quantity,
 		FilledQuantity: resp.FilledQty,
-		Price:         decimal.RequireFromString(resp.Price),
-		StopPrice:     decimal.RequireFromString(resp.StopPrice),
-		AvgFillPrice:  resp.AvgFillPrice,
-		TimeInForce:   types.TimeInForce(resp.TimeInForce),
-		Status:        c.parseOrderStatus(resp.Status),
-		CreatedAt:     resp.Created,
-		UpdatedAt:     resp.Modified,
+		AvgFillPrice:   resp.AvgFillPrice,
+		TimeInForce:    types.TimeInForce(resp.TimeInForce),
+		Status:         c.parseOrderStatus(resp.Status),
+		CreatedAt:      resp.Created,
+		UpdatedAt:      resp.Modified,
 	}
 }
 
@@ -649,20 +653,20 @@ func (c *Client) parseOrderStatus(status string) types.OrderStatus {
 	case "PARTIALLY_FILLED":
 		return types.OrderStatusPartiallyFilled
 	case "CANCELLED", "CANCELED":
-		return types.OrderStatusCanceled
+		return types.OrderStatusCancelled
 	case "EXPIRED":
 		return types.OrderStatusExpired
 	case "REJECTED":
 		return types.OrderStatusRejected
 	default:
-		return types.OrderStatusUnknown
+		return types.OrderStatus(status)
 	}
 }
 
 func (c *Client) parsePosition(resp *TradeResponse) *types.Position {
-	side := types.SideBuy
+	side := types.PositionSideLong
 	if strings.ToUpper(resp.Direction) == "SELL" {
-		side = types.SideSell
+		side = types.PositionSideShort
 	}
 
 	return &types.Position{

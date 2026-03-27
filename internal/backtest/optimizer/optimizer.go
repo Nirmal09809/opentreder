@@ -4,13 +4,12 @@ import (
 	"context"
 	"fmt"
 	"math"
-	"math/rand"
+	"math/rand/v2"
 	"sort"
 	"sync"
 	"time"
 
 	"github.com/opentreder/opentreder/pkg/logger"
-	"github.com/opentreder/opentreder/pkg/types"
 )
 
 type Optimizer struct {
@@ -345,7 +344,7 @@ func (o *Optimizer) createRandomIndividual(paramSpaces []ParameterSpace) *Indivi
 
 	for _, space := range paramSpaces {
 		if len(space.Values) > 0 {
-			genes[space.Name] = space.Values[rand.Intn(len(space.Values))]
+			genes[space.Name] = space.Values[rand.IntN(len(space.Values))]
 		} else {
 			value := space.Min + rand.Float64()*(space.Max-space.Min)
 			if space.Step > 0 {
@@ -356,7 +355,7 @@ func (o *Optimizer) createRandomIndividual(paramSpaces []ParameterSpace) *Indivi
 	}
 
 	return &Individual{
-		ID:        fmt.Sprintf("ind_%d", rand.Int63()),
+		ID:        fmt.Sprintf("ind_%d", rand.Int64()),
 		Genes:     genes,
 		CreatedAt: time.Now(),
 	}
@@ -364,7 +363,7 @@ func (o *Optimizer) createRandomIndividual(paramSpaces []ParameterSpace) *Indivi
 
 func (o *Optimizer) cloneIndividual(original *Individual) *Individual {
 	clone := &Individual{
-		ID:        fmt.Sprintf("clone_%d", rand.Int63()),
+		ID:        fmt.Sprintf("clone_%d", rand.Int64()),
 		Genes:     make(map[string]interface{}),
 		CreatedAt: time.Now(),
 	}
@@ -392,7 +391,7 @@ func (o *Optimizer) mutate(individual *Individual, paramSpaces []ParameterSpace)
 	for _, space := range paramSpaces {
 		if rand.Float64() < o.config.MutationRate {
 			if len(space.Values) > 0 {
-				individual.Genes[space.Name] = space.Values[rand.Intn(len(space.Values))]
+				individual.Genes[space.Name] = space.Values[rand.IntN(len(space.Values))]
 			} else {
 				range_ := space.Max - space.Min
 				mutation := (rand.Float64()*2 - 1) * range_ * 0.1
@@ -422,10 +421,10 @@ func (o *Optimizer) mutate(individual *Individual, paramSpaces []ParameterSpace)
 
 func (o *Optimizer) tournamentSelect() *Individual {
 	tournamentSize := 5
-	best := o.population[rand.Intn(len(o.population))]
+	best := o.population[rand.IntN(len(o.population))]
 
 	for i := 1; i < tournamentSize; i++ {
-		candidate := o.population[rand.Intn(len(o.population))]
+		candidate := o.population[rand.IntN(len(o.population))]
 		if candidate.Fitness > best.Fitness {
 			best = candidate
 		}
@@ -573,7 +572,7 @@ func (o *Optimizer) getNextBayesianPoint(samples []map[string]interface{}, resul
 		if space.Step > 0 {
 			next[space.Name] = space.Min + rand.Float64()*(space.Max-space.Min)
 		} else if len(space.Values) > 0 {
-			next[space.Name] = space.Values[rand.Intn(len(space.Values))]
+			next[space.Name] = space.Values[rand.IntN(len(space.Values))]
 		} else {
 			next[space.Name] = space.Min + rand.Float64()*(space.Max-space.Min)
 		}

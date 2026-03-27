@@ -1,6 +1,7 @@
 package types
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -70,10 +71,16 @@ const (
 	ExchangeKraken       Exchange = "kraken"
 	ExchangeOKX          Exchange = "okx"
 	ExchangeAlpaca       Exchange = "alpaca"
+	ExchangeDeribit      Exchange = "deribit"
+	ExchangeDYDX         Exchange = "dydx"
+	ExchangeHyperliquid  Exchange = "hyperliquid"
+	ExchangeBitmex       Exchange = "bitmex"
 	ExchangeInteractiveBrokers Exchange = "interactive_brokers"
 	ExchangeTradeStation Exchange = "tradestation"
 	ExchangeOANDA        Exchange = "oanda"
 	ExchangePolygon      Exchange = "polygon"
+	ExchangeUniswap      Exchange = "uniswap"
+	ExchangePancakeSwap  Exchange = "pancakeswap"
 )
 
 type MarketType string
@@ -176,6 +183,7 @@ type Candle struct {
 	Exchange  Exchange        `json:"exchange" db:"exchange"`
 	Timeframe string          `json:"timeframe" db:"timeframe"`
 	Timestamp time.Time       `json:"timestamp" db:"timestamp"`
+	EndTime   time.Time       `json:"end_time" db:"end_time"`
 	Open      decimal.Decimal `json:"open" db:"open"`
 	High      decimal.Decimal `json:"high" db:"high"`
 	Low       decimal.Decimal `json:"low" db:"low"`
@@ -188,31 +196,29 @@ type Candle struct {
 }
 
 type Ticker struct {
-	Symbol            string          `json:"symbol" db:"symbol"`
-	Exchange          Exchange        `json:"exchange" db:"exchange"`
-	LastPrice         decimal.Decimal `json:"last_price" db:"last_price"`
-	BidPrice          decimal.Decimal `json:"bid_price" db:"bid_price"`
-	BidQty            decimal.Decimal `json:"bid_qty" db:"bid_qty"`
-	AskPrice          decimal.Decimal `json:"ask_price" db:"ask_price"`
-	AskQty            decimal.Decimal `json:"ask_qty" db:"ask_qty"`
-	Volume24h         decimal.Decimal `json:"volume_24h" db:"volume_24h"`
-	QuoteVolume24h    decimal.Decimal `json:"quote_volume_24h" db:"quote_volume_24h"`
-	High24h           decimal.Decimal `json:"high_24h" db:"high_24h"`
-	Low24h            decimal.Decimal `json:"low_24h" db:"low_24h"`
-	PriceChange24h    decimal.Decimal `json:"price_change_24h" db:"price_change_24h"`
-	PriceChangePct24h decimal.Decimal `json:"price_change_pct_24h" db:"price_change_pct_24h"`
-	Timestamp         time.Time       `json:"timestamp" db:"timestamp"`
+	Symbol          string          `json:"symbol" db:"symbol"`
+	Exchange        Exchange        `json:"exchange" db:"exchange"`
+	LastPrice       decimal.Decimal `json:"last_price" db:"last_price"`
+	BidPrice        decimal.Decimal `json:"bid_price" db:"bid_price"`
+	AskPrice        decimal.Decimal `json:"ask_price" db:"ask_price"`
+	Volume24h       decimal.Decimal `json:"volume_24h" db:"volume_24h"`
+	QuoteVolume24h  decimal.Decimal `json:"quote_volume_24h" db:"quote_volume_24h"`
+	High24h         decimal.Decimal `json:"high_24h" db:"high_24h"`
+	Low24h          decimal.Decimal `json:"low_24h" db:"low_24h"`
+	PriceChange     decimal.Decimal `json:"price_change" db:"price_change"`
+	PriceChangePct  decimal.Decimal `json:"price_change_pct" db:"price_change_pct"`
+	Timestamp       time.Time       `json:"timestamp" db:"timestamp"`
 }
 
 type OrderBook struct {
-	Symbol    string            `json:"symbol" db:"symbol"`
-	Exchange  Exchange          `json:"exchange" db:"exchange"`
-	Bids      []OrderBookLevel  `json:"bids" db:"-"`
-	Asks      []OrderBookLevel  `json:"asks" db:"-"`
-	Timestamp time.Time         `json:"timestamp" db:"timestamp"`
+	Symbol    string          `json:"symbol" db:"symbol"`
+	Exchange  Exchange        `json:"exchange" db:"exchange"`
+	Bids      []PriceLevel   `json:"bids" db:"-"`
+	Asks      []PriceLevel   `json:"asks" db:"-"`
+	Timestamp time.Time       `json:"timestamp" db:"timestamp"`
 }
 
-type OrderBookLevel struct {
+type PriceLevel struct {
 	Price    decimal.Decimal `json:"price"`
 	Quantity decimal.Decimal `json:"quantity"`
 }
@@ -399,5 +405,172 @@ func (t Timeframe) Duration() time.Duration {
 		return 30 * 24 * time.Hour
 	default:
 		return time.Minute
+	}
+}
+
+func UUIDFromString(s string) uuid.UUID {
+	id, err := uuid.Parse(s)
+	if err != nil {
+		return uuid.New()
+	}
+	return id
+}
+
+func UUIDFromInt64(i int64) uuid.UUID {
+	return uuid.New()
+}
+
+func QuantityFromFloat(val float64) decimal.Decimal {
+	return decimal.NewFromFloat(val)
+}
+
+func MidPrice(bids, asks []PriceLevel) decimal.Decimal {
+	if len(bids) == 0 || len(asks) == 0 {
+		return decimal.Zero
+	}
+	bestBid := bids[0].Price
+	bestAsk := asks[0].Price
+	return bestBid.Add(bestAsk).Div(decimal.NewFromInt(2))
+}
+
+func Spread(bids, asks []PriceLevel) decimal.Decimal {
+	if len(bids) == 0 || len(asks) == 0 {
+		return decimal.Zero
+	}
+	bestBid := bids[0].Price
+	bestAsk := asks[0].Price
+	return bestAsk.Sub(bestBid)
+}
+
+func SpreadPct(bids, asks []PriceLevel) decimal.Decimal {
+	spread := Spread(bids, asks)
+	mid := MidPrice(bids, asks)
+	if mid.IsZero() {
+		return decimal.Zero
+	}
+	return spread.Div(mid).Mul(decimal.NewFromInt(100))
+}
+
+func BestBid(levels []PriceLevel) decimal.Decimal {
+	if len(levels) == 0 {
+		return decimal.Zero
+	}
+	return levels[0].Price
+}
+
+func BestAsk(levels []PriceLevel) decimal.Decimal {
+	if len(levels) == 0 {
+		return decimal.Zero
+	}
+	return levels[0].Price
+}
+
+func TotalQuantity(levels []PriceLevel) decimal.Decimal {
+	total := decimal.Zero
+	for _, level := range levels {
+		total = total.Add(level.Quantity)
+	}
+	return total
+}
+
+func WeightedAvgPrice(levels []PriceLevel) decimal.Decimal {
+	if len(levels) == 0 {
+		return decimal.Zero
+	}
+	totalQty := decimal.Zero
+	weightedSum := decimal.Zero
+	for _, level := range levels {
+		totalQty = totalQty.Add(level.Quantity)
+		weightedSum = weightedSum.Add(level.Price.Mul(level.Quantity))
+	}
+	if totalQty.IsZero() {
+		return decimal.Zero
+	}
+	return weightedSum.Div(totalQty)
+}
+
+func NewTicker(symbol string, exchange Exchange, lastPrice float64) *Ticker {
+	return &Ticker{
+		Symbol:     symbol,
+		Exchange:   exchange,
+		LastPrice:  decimal.NewFromFloat(lastPrice),
+		Timestamp:  time.Now(),
+	}
+}
+
+func NewCandle(symbol string, exchange Exchange, tf Timeframe, ts time.Time) *Candle {
+	return &Candle{
+		Symbol:    symbol,
+		Exchange:  exchange,
+		Timeframe: string(tf),
+		Timestamp: ts,
+		EndTime:   ts.Add(tf.Duration()),
+		Closed:    false,
+	}
+}
+
+func NewOrder(symbol string, exchange Exchange, side OrderSide, orderType OrderType, qty, price float64) *Order {
+	now := time.Now()
+	return &Order{
+		ID:           uuid.New(),
+		ClientOrderID: fmt.Sprintf("ot_%d", now.UnixNano()),
+		Exchange:     exchange,
+		Symbol:       symbol,
+		Side:         side,
+		Type:         orderType,
+		Status:       OrderStatusPending,
+		Quantity:     decimal.NewFromFloat(qty),
+		Price:        decimal.NewFromFloat(price),
+		TimeInForce:  TimeInForceGTC,
+		CreatedAt:    now,
+		UpdatedAt:    now,
+	}
+}
+
+func NewPosition(symbol string, exchange Exchange, side PositionSide, qty, entryPrice float64) *Position {
+	now := time.Now()
+	return &Position{
+		ID:             uuid.New(),
+		Exchange:       exchange,
+		Symbol:         symbol,
+		Side:           side,
+		Quantity:       decimal.NewFromFloat(qty),
+		AvgEntryPrice:  decimal.NewFromFloat(entryPrice),
+		Leverage:       decimal.NewFromInt(1),
+		OpenedAt:       now,
+		UpdatedAt:      now,
+	}
+}
+
+func (o *Order) IsFilled() bool {
+	return o.Status == OrderStatusFilled
+}
+
+func (o *Order) IsActive() bool {
+	return o.Status == OrderStatusPending || o.Status == OrderStatusOpen || o.Status == OrderStatusPartiallyFilled
+}
+
+func (o *Order) RemainingPercent() decimal.Decimal {
+	if o.Quantity.IsZero() {
+		return decimal.Zero
+	}
+	return o.RemainingQty.Div(o.Quantity).Mul(decimal.NewFromInt(100))
+}
+
+func (p *Position) UnrealizedReturn() decimal.Decimal {
+	if p.AvgEntryPrice.IsZero() {
+		return decimal.Zero
+	}
+	return p.CurrentPrice.Sub(p.AvgEntryPrice).Div(p.AvgEntryPrice).Mul(decimal.NewFromInt(100))
+}
+
+func (p *Position) UpdatePnL(currentPrice float64) {
+	p.CurrentPrice = decimal.NewFromFloat(currentPrice)
+	p.UnrealizedPnL = p.CurrentPrice.Sub(p.AvgEntryPrice).Mul(p.Quantity)
+	if p.Side == PositionSideShort {
+		p.UnrealizedPnL = p.UnrealizedPnL.Neg()
+	}
+	if !p.AvgEntryPrice.IsZero() {
+		p.ROI = p.UnrealizedPnL.Div(p.AvgEntryPrice.Mul(p.Quantity)).Mul(decimal.NewFromInt(100))
 	}
 }

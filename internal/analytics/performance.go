@@ -3,6 +3,7 @@ package analytics
 import (
 	"fmt"
 	"math"
+	"math/rand/v2"
 	"sort"
 	"time"
 
