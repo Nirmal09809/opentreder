@@ -22,8 +22,15 @@ const (
 	StateExchanges
 	StateLogs
 	StateSettings
+	StateAIChat
 	StateHelp
 )
+
+type ChatMessage struct {
+	Role    string
+	Content string
+	Time    time.Time
+}
 
 var (
 	primaryStyle = lipgloss.NewStyle().
@@ -52,12 +59,17 @@ type App struct {
 	height        int
 	showHelp      bool
 	showWelcome   bool
+	chatInput     string
+	chatMessages  []ChatMessage
 }
 
 func NewApp() *App {
 	return &App{
 		state:       StateDashboard,
 		showWelcome: true,
+		chatMessages: []ChatMessage{
+			{Role: "assistant", Content: "👋 Namaste! Main OpenTrader AI hoon.\n\nTum mujse ye poochh sakte ho:\n• Trading strategies ke baare mein\n• Market analysis ke baare mein\n• Risk management ke baare mein\n• OpenTrader features ke baare mein\n• Koi bhi technical sawaal\n\nType karo apna sawaal!", Time: time.Now()},
+		},
 	}
 }
 
@@ -91,12 +103,26 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.state = StateLogs
 		case "0":
 			m.state = StateSettings
+		case "a", "A":
+			m.state = StateAIChat
 		case "?":
 			m.showHelp = !m.showHelp
 		case "w":
 			m.showWelcome = !m.showWelcome
 		case "tab":
 			m.nextView()
+		case "enter":
+			if m.state == StateAIChat && m.chatInput != "" {
+				m.handleChatSubmit()
+			}
+		case "backspace":
+			if m.state == StateAIChat && len(m.chatInput) > 0 {
+				m.chatInput = m.chatInput[:len(m.chatInput)-1]
+			}
+		default:
+			if m.state == StateAIChat {
+				m.chatInput += msg.String()
+			}
 		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -106,7 +132,117 @@ func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 }
 
 func (m *App) nextView() {
-	m.state = (m.state + 1) % 11
+	m.state = (m.state + 1) % 12
+}
+
+func (m *App) handleChatSubmit() {
+	userMsg := m.chatInput
+	m.chatMessages = append(m.chatMessages, ChatMessage{
+		Role:    "user",
+		Content: userMsg,
+		Time:    time.Now(),
+	})
+	
+	m.chatInput = ""
+	
+	response := m.generateAIResponse(userMsg)
+	m.chatMessages = append(m.chatMessages, ChatMessage{
+		Role:    "assistant",
+		Content: response,
+		Time:    time.Now(),
+	})
+}
+
+func (m *App) generateAIResponse(query string) string {
+	query = strings.ToLower(query)
+	
+	if strings.Contains(query, "hi") || strings.Contains(query, "hello") || strings.Contains(query, "namaste") {
+		return "👋 Namaste! Kaise help kar sakta hoon aaj?"
+	}
+	
+	if strings.Contains(query, "strategy") || strings.Contains(query, "strategies") {
+		return `📊 OpenTrader mein 15+ strategies hain:
+
+🔹 Grid Trading - Range-bound markets ke liye
+🔹 DCA (Dollar Cost Averaging) - Periodic purchases
+🔹 Trend Following - MA crossovers
+🔹 Scalping - Quick HFT trades
+🔹 Arbitrage - Cross-exchange price diff
+🔹 Market Making - Bid-ask spread capture
+
+Konsa strategy use karna hai?`
+	}
+	
+	if strings.Contains(query, "risk") || strings.Contains(query, "exposure") {
+		return `⚠️ Risk Management Features:
+
+• Max Position Size control
+• Max Drawdown limits
+• Daily Loss tracking
+• Leverage limits
+• Margin monitoring
+• Auto-liquidate on breach
+
+Risk parameters config.yaml mein set kar sakte ho.`
+	}
+	
+	if strings.Contains(query, "exchange") || strings.Contains(query, "binance") {
+		return `🔗 Supported Exchanges (15+):
+
+CEX: Binance, Bybit, OKX, Coinbase, Kraken
+DEX: Uniswap, PancakeSwap
+Perpetuals: dYdX, Hyperliquid, Bitmex, Deribit
+Stocks: Alpaca, Interactive Brokers, Tradier
+
+API keys setup karne ke liye config.yaml edit karo.`
+	}
+	
+	if strings.Contains(query, "backtest") {
+		return `🔬 Backtest Engine Features:
+
+• Historical data testing
+• Sharpe, Sortino, Calmar ratios
+• Max Drawdown calculation
+• Win rate analysis
+• P&L tracking
+• Equity curve visualization
+
+Command: opentreder backtest --strategy grid --symbol BTC/USDT`
+	}
+	
+	if strings.Contains(query, "ai") || strings.Contains(query, "ml") || strings.Contains(query, "bot") {
+		return `🤖 AI Features:
+
+• GPT-4 powered analysis
+• Transformer models
+• LSTM for price prediction
+• XGBoost ensemble
+• Real-time sentiment
+• Signal generation
+
+AI enable karne ke liye config mein api_key add karo.`
+	}
+	
+	if strings.Contains(query, "install") || strings.Contains(query, "setup") {
+		return `🚀 Installation Steps:
+
+1. git clone https://github.com/Nirmal09809/opentreder
+2. cd opentreder
+3. go mod download
+4. go build -o opentreder ./cmd/cli
+5. ./opentreder interactive
+
+Docker: docker-compose up -d`
+	}
+	
+	return `🤔 Samajh nahi aaya. Kuch aur pucho:
+
+• "strategy" - Trading strategies ke baare mein
+• "risk" - Risk management ke baare mein
+• "exchange" - Supported exchanges ke baare mein
+• "backtest" - Backtest features ke baare mein
+• "ai" - AI features ke baare mein
+• "install" - Setup instructions`
 }
 
 func (m *App) View() string {
@@ -178,7 +314,7 @@ func (m *App) renderWelcome() string {
 		dimStyle.Render("║"),
 		dimStyle.Render("║"),
 		dimStyle.Render(strings.Repeat("═", 100)),
-		dimStyle.Render("Press 1-9 for views, Tab to cycle, W to toggle welcome, ? for help, Q to quit"),
+		dimStyle.Render("Press 1-9 for views, A for AI Chat, Tab to cycle, W to toggle welcome, ? for help, Q to quit"),
 		warningStyle.Render("[1] Dashboard"),
 		successStyle.Render("[2] Markets"),
 		cyanStyle.Render("[3] Portfolio"),
@@ -188,7 +324,8 @@ func (m *App) renderWelcome() string {
 		infoStyle.Render("[7] Backtest"),
 		dimStyle.Render("[8] Exchanges"),
 		dimStyle.Render("[9] Logs"),
-		dimStyle.Render("[0] Settings"))
+		dimStyle.Render("[0] Settings"),
+		primaryStyle.Render("[A] AI Chat"))
 }
 
 func (m *App) renderCurrentView() string {
@@ -213,6 +350,8 @@ func (m *App) renderCurrentView() string {
 		return m.renderLogsView()
 	case StateSettings:
 		return m.renderSettingsView()
+	case StateAIChat:
+		return m.renderAIChatView()
 	case StateHelp:
 		return m.renderHelpView()
 	default:
@@ -509,6 +648,8 @@ func renderFooter(state viewState) string {
 		viewName = "Logs"
 	case StateSettings:
 		viewName = "Settings"
+	case StateAIChat:
+		viewName = "AI Chat"
 	case StateHelp:
 		viewName = "Help"
 	}
@@ -522,9 +663,56 @@ func renderFooter(state viewState) string {
 		strings.Repeat("═", 95))
 }
 
+func (m *App) renderAIChatView() string {
+	var chatLines []string
+	chatLines = append(chatLines, primaryStyle.Render(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           🤖 AI CHAT ASSISTANT                                 ║
+╠══════════════════════════════════════════════════════════════════════════════════╣`))
+	
+	for _, msg := range m.chatMessages {
+		role := "👤"
+		style := dimStyle
+		if msg.Role == "assistant" {
+			role = "🤖"
+			style = cyanStyle
+		}
+		chatLines = append(chatLines, fmt.Sprintf(`║  %s %s [%s]`, role, style.Render(msg.Time.Format("15:04")), dimStyle.Render("────────────────────────────")))
+		for _, line := range strings.Split(msg.Content, "\n") {
+			if len(line) > 70 {
+				line = line[:70] + "..."
+			}
+			chatLines = append(chatLines, fmt.Sprintf(`║      %s`, dimStyle.Render(line)))
+		}
+	}
+	
+	chatLines = append(chatLines, dimStyle.Render(`╠══════════════════════════════════════════════════════════════════════════════════╣`))
+	chatLines = append(chatLines, dimStyle.Render(`║  Type your message and press ENTER to send...                              ║`))
+	chatLines = append(chatLines, fmt.Sprintf(`║  %s`, dimStyle.Render("> "+m.chatInput+strings.Repeat(" ", max(0, 70-len(m.chatInput))))))
+	chatLines = append(chatLines, dimStyle.Render(`╚══════════════════════════════════════════════════════════════════════════════════╝`))
+	
+	chatLines = append(chatLines, dimStyle.Render(`
+  💡 Try asking:
+  • "strategy" - Trading strategies
+  • "risk" - Risk management  
+  • "exchange" - Supported exchanges
+  • "backtest" - Backtest features
+  • "ai" - AI features
+  • "install" - Setup instructions`))
+	
+	return strings.Join(chatLines, "\n")
+}
+
+func max(a, b int) int {
+	if a > b {
+		return a
+	}
+	return b
+}
+
 var (
-	cyanStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4"))
-	goldStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B"))
+	cyanStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4"))
+	goldStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B"))
 	secondaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#A855F7"))
-	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))
+	infoStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))
 )
