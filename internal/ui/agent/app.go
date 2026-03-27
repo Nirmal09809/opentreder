@@ -159,7 +159,7 @@ type AIGeneratedMsg struct {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		return m.handleViewKeyMsg(msg)
+		return m.handleKeyMsg(msg)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -169,7 +169,9 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m, nil
 
 	case LoadingCompleteMsg:
-		m.view = ViewSetup
+		if m.view == ViewLoading {
+			m.view = ViewSetup
+		}
 		return m, nil
 
 	case AIGeneratedMsg:
@@ -177,10 +179,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			role:      "assistant",
 			content:   msg.response,
 			timestamp: time.Now(),
-		})
-		m.actions = append(m.actions, Action{
-			description: "AI response generated",
-			timestamp:   time.Now(),
 		})
 		return m, nil
 	}
@@ -190,37 +188,28 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleViewKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+	// First, pass key to textinput for typing
+	var cmd tea.Cmd
+	m.textInput, cmd = m.textInput.Update(keyMsg)
+
+	// Handle special keys
 	switch keyMsg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		if m.view == ViewChat {
 			m.view = ViewSetup
-			return m, nil
+			return m, cmd
 		}
-		if m.view == ViewSetup || m.view == ViewSessions || m.view == ViewThemes || m.view == ViewModels || m.view == ViewProviders || m.view == ViewStatus || m.view == ViewHelp {
-			return m, tea.Quit
-		}
-		return m, nil
+		return m, tea.Quit
 
 	case tea.KeyEnter:
 		return m.handleEnter()
 
-	case tea.KeyTab:
-		m.waitingForInput = !m.waitingForInput
-		if m.waitingForInput {
-			m.inputPrompt = "API Key"
-			m.textInput.Placeholder = "sk-..."
-			m.textInput.Focus()
-		}
-		return m, nil
-
 	case tea.KeyUp:
 		if m.view == ViewSessions || m.view == ViewThemes || m.view == ViewModels || m.view == ViewProviders {
 			m.selectedIndex = max(0, m.selectedIndex-1)
-		} else if m.view == ViewChat && m.chatScrollOffset > 0 {
-			m.chatScrollOffset--
 		}
-		return m, nil
+		return m, cmd
 
 	case tea.KeyDown:
 		if m.view == ViewSessions || m.view == ViewThemes || m.view == ViewModels || m.view == ViewProviders {
@@ -233,14 +222,8 @@ func (m Model) handleViewKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 				maxIdx = len(m.providers) - 1
 			}
 			m.selectedIndex = min(maxIdx, m.selectedIndex+1)
-		} else if m.view == ViewChat && m.chatScrollOffset < len(m.messages)-1 {
-			m.chatScrollOffset++
 		}
-		return m, nil
-
-	case tea.KeyCtrlV:
-		// Handle paste - textinput handles this automatically
-		return m, nil
+		return m, cmd
 
 	case tea.KeyRunes:
 		switch keyMsg.String() {
