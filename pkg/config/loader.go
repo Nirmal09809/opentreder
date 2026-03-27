@@ -8,6 +8,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/mitchellh/mapstructure"
 	"github.com/opentreder/opentreder/pkg/logger"
 	"github.com/opentreder/opentreder/pkg/types"
 	"github.com/shopspring/decimal"
@@ -454,7 +455,23 @@ func Load(configPath string, opts ...Option) (*Config, error) {
 		}
 
 		config = &Config{}
-		if err := v.Unmarshal(config); err != nil {
+		
+		decoderConfig := &mapstructure.DecoderConfig{
+			Result: config,
+			DecodeHook: mapstructure.ComposeDecodeHookFunc(
+				stringToDecimalHookFunc(),
+				mapstructure.StringToTimeDurationHookFunc(),
+				mapstructure.StringToSliceHookFunc(","),
+			),
+		}
+		
+		decoder, err := mapstructure.NewDecoder(decoderConfig)
+		if err != nil {
+			loadErr = fmt.Errorf("failed to create decoder: %w", err)
+			return
+		}
+		
+		if err := decoder.Decode(v.AllSettings()); err != nil {
 			loadErr = fmt.Errorf("failed to unmarshal config: %w", err)
 			return
 		}
@@ -915,5 +932,44 @@ func castToStringSlice(v interface{}) []string {
 		return result
 	default:
 		return nil
+	}
+}
+
+func stringToDecimalHookFunc() mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.String {
+			return data, nil
+		}
+		if t != reflect.TypeOf(decimal.Decimal{}) {
+			return data, nil
+		}
+		
+		dataStr := data.(string)
+		d, err := decimal.NewFromString(dataStr)
+		if err != nil {
+			return decimal.Zero, nil
+		}
+		return d, nil
+	}
+}
+
+func floatToDecimalHookFunc() mapstructure.DecodeHookFunc {
+	return func(f reflect.Type, t reflect.Type, data interface{}) (interface{}, error) {
+		if f.Kind() != reflect.Float64 && f.Kind() != reflect.Int {
+			return data, nil
+		}
+		if t != reflect.TypeOf(decimal.Decimal{}) {
+			return data, nil
+		}
+		
+		var f64 float64
+		switch f.Kind() {
+		case reflect.Float64:
+			f64 = data.(float64)
+		case reflect.Int:
+			f64 = float64(data.(int))
+		}
+		
+		return decimal.NewFromFloat(f64), nil
 	}
 }

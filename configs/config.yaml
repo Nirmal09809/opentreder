@@ -53,9 +53,9 @@ trading:
   order_timeout: 30s
   retry_attempts: 3
   retry_delay: 1s
-  slippage_tolerance: 0.001
-  commission_rate: 0.001
-  default_leverage: 1
+  slippage_tolerance: "0.001"
+  commission_rate: "0.001"
+  default_leverage: "1"
   allow_margin: false
   auto_liquidate: true
   partial_fill_enabled: true
@@ -63,18 +63,18 @@ trading:
 
 risk:
   enabled: true
-  max_position_size: 1.0
-  max_order_size: 0.5
-  max_daily_loss: 0.1
-  max_drawdown: 0.2
-  max_exposure: 0.8
-  max_leverage: 3
-  min_account_balance: 100
+  max_position_size: "1.0"
+  max_order_size: "0.5"
+  max_daily_loss: "0.1"
+  max_drawdown: "0.2"
+  max_exposure: "0.8"
+  max_leverage: "3"
+  min_account_balance: "100"
   position_sizing: fixed
-  stop_loss: 0.05
-  take_profit: 0.1
-  trailing_stop: 0.02
-  risk_per_trade: 0.02
+  stop_loss: "0.05"
+  take_profit: "0.1"
+  trailing_stop: "0.02"
+  risk_per_trade: "0.02"
 
 ai:
   enabled: false
