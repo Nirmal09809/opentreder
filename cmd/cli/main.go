@@ -24,6 +24,7 @@ import (
 	"github.com/opentreder/opentreder/internal/marketdata"
 	"github.com/opentreder/opentreder/internal/strategies"
 	"github.com/opentreder/opentreder/internal/storage"
+	"github.com/opentreder/opentreder/internal/ui/agent"
 	"github.com/opentreder/opentreder/internal/ui/tui"
 	"github.com/opentreder/opentreder/pkg/config"
 	"github.com/opentreder/opentreder/pkg/logger"
@@ -68,6 +69,7 @@ A professional-grade, autonomous trading system with:
 	rootCmd.AddCommand(
 		newRunCommand(),
 		newInteractiveCommand(),
+		newAgentCommand(),
 		newBacktestCommand(),
 		newConfigCommand(),
 		newStrategyCommand(),
@@ -165,6 +167,40 @@ func newInteractiveCommand() *cobra.Command {
 			return nil
 		},
 	}
+
+	return cmd
+}
+
+func newAgentCommand() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "agent",
+		Aliases: []string{"ai", "chat"},
+		Short: "Launch OpenCode-style AI Agent",
+		Long:  `Start the autonomous AI trading agent with chat interface`,
+		Example: `
+  opentreder agent
+  opentreder ai
+  opentreder agent --model gpt-4o
+  opentreder chat "Buy 0.1 BTC"
+`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			m := agent.NewModel()
+			p := tea.NewProgram(m,
+				tea.WithAltScreen(),
+				tea.WithMouseCellMotion(),
+			)
+
+			if _, err := p.Run(); err != nil {
+				return fmt.Errorf("agent error: %w", err)
+			}
+			return nil
+		},
+	}
+
+	cmd.Flags().String("model", "gpt-4o", "AI model to use")
+	cmd.Flags().String("provider", "OpenAI", "AI provider")
+	cmd.Flags().String("api-key", "", "API key for AI provider")
+	cmd.Flags().Bool("dark", true, "Use dark theme")
 
 	return cmd
 }
