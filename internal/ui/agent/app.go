@@ -142,7 +142,7 @@ type AIGeneratedMsg struct {
 func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
 	case tea.KeyMsg:
-		return m.handleKeyMsg(msg)
+		return m.handleViewKeyMsg(msg)
 
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
@@ -164,7 +164,6 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.actions = append(m.actions, Action{
 			description: "AI response generated",
 			timestamp:   time.Now(),
-			status:      "complete",
 		})
 		return m, nil
 	}
@@ -174,7 +173,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
-func (m Model) handleKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
+func (m Model) handleViewKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 	switch keyMsg.Type {
 	case tea.KeyCtrlC, tea.KeyEsc:
 		if m.view == ViewChat {
@@ -220,6 +219,10 @@ func (m Model) handleKeyMsg(keyMsg tea.KeyMsg) (Model, tea.Cmd) {
 		} else if m.view == ViewChat && m.chatScrollOffset < len(m.messages)-1 {
 			m.chatScrollOffset++
 		}
+		return m, nil
+
+	case tea.KeyCtrlV:
+		// Handle paste - textinput handles this automatically
 		return m, nil
 
 	case tea.KeyRunes:
