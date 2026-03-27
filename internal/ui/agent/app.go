@@ -104,6 +104,23 @@ func NewModel() Model {
 	}
 }
 
+func (m *Model) SetAPIKey(key string) {
+	m.apiKey = key
+	m.view = ViewChat
+	m.messages = []Message{
+		{role: "system", content: "API key set successfully! You can start chatting.", timestamp: time.Now()},
+		{role: "system", content: "What would you like to do today?", timestamp: time.Now()},
+	}
+}
+
+func (m *Model) SetModel(mod string) {
+	m.model = mod
+}
+
+func (m *Model) SetProvider(p string) {
+	m.provider = p
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(
 		runLoadingSequence(),

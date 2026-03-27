@@ -172,6 +172,12 @@ func newInteractiveCommand() *cobra.Command {
 }
 
 func newAgentCommand() *cobra.Command {
+	var (
+		model    string
+		provider string
+		apiKey   string
+	)
+
 	cmd := &cobra.Command{
 		Use:   "agent",
 		Aliases: []string{"ai", "chat"},
@@ -179,12 +185,24 @@ func newAgentCommand() *cobra.Command {
 		Long:  `Start the autonomous AI trading agent with chat interface`,
 		Example: `
   opentreder agent
+  opentreder agent --api-key sk-xxx
+  opentreder agent --model gpt-4o --api-key sk-xxx
   opentreder ai
-  opentreder agent --model gpt-4o
-  opentreder chat "Buy 0.1 BTC"
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			m := agent.NewModel()
+			
+			// If API key provided via flag, skip setup screen
+			if apiKey != "" {
+				m.SetAPIKey(apiKey)
+			}
+			if model != "" {
+				m.SetModel(model)
+			}
+			if provider != "" {
+				m.SetProvider(provider)
+			}
+
 			p := tea.NewProgram(m,
 				tea.WithAltScreen(),
 				tea.WithMouseCellMotion(),
@@ -197,10 +215,9 @@ func newAgentCommand() *cobra.Command {
 		},
 	}
 
-	cmd.Flags().String("model", "gpt-4o", "AI model to use")
-	cmd.Flags().String("provider", "OpenAI", "AI provider")
-	cmd.Flags().String("api-key", "", "API key for AI provider")
-	cmd.Flags().Bool("dark", true, "Use dark theme")
+	cmd.Flags().StringVar(&model, "model", "gpt-4o", "AI model to use")
+	cmd.Flags().StringVar(&provider, "provider", "OpenAI", "AI provider")
+	cmd.Flags().StringVar(&apiKey, "api-key", "", "API key for AI provider (sk-xxx)")
 
 	return cmd
 }
