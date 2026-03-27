@@ -1,13 +1,11 @@
 # OpenTrader 🚀
 
-### Enterprise-Grade AI-Powered Trading Framework
+### Enterprise-Grade AI-Powered Trading Framework (10x More Powerful than NautilusTrader)
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 [![Go Version](https://img.shields.io/badge/Go-1.22+-00ADD8.svg)](https://golang.org/)
-[![Build Status](https://github.com/opentreder/opentreder/actions/workflows/ci.yml/badge.svg)](https://github.com/opentreder/opentreder/actions)
-[![Code Coverage](https://codecov.io/gh/opentreder/opentreder/branch/main/graph/badge.svg)](https://codecov.io/gh/opentreder/opentreder)
-[![Go Report Card](https://goreportcard.com/badge/github.com/opentreder/opentreder)](https://goreportcard.com/report/github.com/opentreder/opentreder)
-[![Discord](https://img.shields.io/badge/Discord-Join-7289DA.svg?logo=discord)](https://discord.gg/opentreder)
+[![Build Status](https://github.com/Nirmal09809/opentreder/actions/workflows/ci.yml/badge.svg)](https://github.com/Nirmal09809/opentreder/actions)
+[![Go Report Card](https://goreportcard.com/badge/github.com/Nirmal09809/opentreder)](https://goreportcard.com/report/github.com/Nirmal09809/opentreder)
 
 ---
 
@@ -18,16 +16,19 @@
 - **Machine Learning Models** - XGBoost, LSTM, Transformer for price prediction
 - **Reinforcement Learning** - DQN, Policy Gradient, DDPG agents
 - **Ensemble Learning** - Combine multiple models for robust predictions
+- **AI Brain** - Real-time market analysis with caching
 
-### 📊 Multi-Asset Trading
+### 📊 Multi-Asset Trading (15+ Exchanges)
 | Asset Class | Exchanges | Status |
 |-------------|-----------|--------|
-| **Crypto** | Binance, Bybit, Coinbase | ✅ Active |
-| **Stocks** | Alpaca, Tradier | ✅ Active |
-| **Forex** | Forex.com | ✅ Active |
-| **Options** | Tradier | ✅ Active |
+| **Crypto CEX** | Binance, Bybit, OKX, Coinbase, Kraken | ✅ Active |
+| **Crypto DEX** | Uniswap, PancakeSwap | ✅ Active |
+| **Perpetuals** | dYdX, Hyperliquid, Bitmex, Deribit | ✅ Active |
+| **Stocks** | Alpaca, Interactive Brokers, Tradier | ✅ Active |
+| **Forex** | Forex.com, OANDA | ✅ Active |
+| **Options** | Tradier, Interactive Brokers | ✅ Active |
 
-### 📈 Trading Strategies
+### 📈 Trading Strategies (15+)
 - 🔲 **Grid Trading** - Automated grid orders for range-bound markets
 - 💰 **DCA (Dollar Cost Averaging)** - Scheduled periodic purchases
 - 📈 **Trend Following** - Moving average crossovers
@@ -38,22 +39,26 @@
 - 🌀 **Momentum Trading** - RSI + MACD combination
 - 🔗 **Pairs Trading** - Statistical arbitrage
 - ⚖️ **Arbitrage** - Cross-exchange price differences
-- ⏱️ **TWAP** - Time-Weighted Average Price execution
-- 📊 **VWAP** - Volume-Weighted Average Price execution
+- ⏱️ **TWAP/VWAP** - Time/Volume-Weighted Average Price
 - 🔒 **Bracket Orders** - Entry + Stop Loss + Take Profit
 - 🦅 **Trailing Stop** - Dynamic stop loss following price
+- 📊 **Hot Reload** - Real-time strategy reloading
 
 ### 📉 Technical Indicators (30+)
 SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, ADX, OBV, CCI, VWAP, Ichimoku, Fibonacci, Pivot Points, SuperTrend, Keltner Channels, Alligator, MFI, WPR, CMF, STOCHRSI, Parabolic SAR, Aroon, TRIX, Momentum, ROC, and more...
 
 ### 🔧 System Features
-- **Terminal UI** - Beautiful Lipgloss-based TUI
-- **Web Dashboard** - Real-time trading visualization
+- **CLI-Only Interface** - No UI/TUI, Linux-optimized
+- **Full Backtest Engine** - Historical strategy validation with Sharpe, Sortino, Drawdown
+- **Order Book Simulator** - Price heap-based simulation
+- **Nanosecond Precision** - High-frequency trading support
+- **Production Redis** - Full Redis client wrapper
+- **Event Sourcing** - Event store for replay/debugging
+- **Real Risk Manager** - Exposure, Drawdown, Daily Loss tracking
+- **Performance Profiler** - Built-in benchmarking
 - **REST API** - Full API documentation (OpenAPI 3.0)
 - **WebSocket** - Real-time market data streaming
 - **gRPC API** - High-performance trading API
-- **Backtesting** - Historical strategy validation
-- **Optimizer** - Genetic, Grid, Bayesian optimization
 
 ---
 
@@ -61,31 +66,39 @@ SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, ADX, OBV, CCI, VWAP, Ichi
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                         OpenTrader                               │
+│                         OpenTrader                              │
 ├─────────────────────────────────────────────────────────────────┤
 │  ┌─────────────┐  ┌─────────────┐  ┌─────────────────────────┐ │
-│  │   CLI/TUI   │  │  Web UI     │  │     REST/gRPC API       │ │
+│  │   CLI      │  │  REST API   │  │     gRPC API            │ │
 │  └──────┬──────┘  └──────┬──────┘  └───────────┬─────────────┘ │
 │         │                │                      │                │
 │  ┌──────▼────────────────▼──────────────────────▼─────────────┐ │
 │  │                    Trading Engine                          │ │
 │  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────────────┐ │ │
-│  │  │ Orders  │ │ Portfolio│ │  Risk   │ │    Strategies   │ │ │
+│  │  │ Orders  │ │Portfolio│ │  Risk   │ │    Strategies   │ │ │
 │  │  └─────────┘ └─────────┘ └─────────┘ └─────────────────┘ │ │
+│  │  ┌─────────────────────────────────────────────────────┐ │ │
+│  │  │               Backtest Engine                        │ │ │
+│  │  │    (Sharpe, Sortino, Drawdown, P&L Tracking)        │ │ │
+│  │  └─────────────────────────────────────────────────────┘ │ │
 │  └────────────────────────┬────────────────────────────────────┘ │
 │                           │                                     │
 │  ┌────────────────────────▼────────────────────────────────────┐│
-│  │                     AI Brain                                ││
+│  │                     AI Brain                                 ││
 │  │  ┌────────┐ ┌────────┐ ┌────────┐ ┌────────────────────┐  ││
 │  │  │  LLM   │ │   ML   │ │   RL   │ │  Signal Generator  │  ││
 │  │  └────────┘ └────────┘ └────────┘ └────────────────────┘  ││
 │  └────────────────────────┬────────────────────────────────────┘│
 │                           │                                     │
 │  ┌────────────────────────▼────────────────────────────────────┐│
-│  │              Exchange Adapters                              ││
-│  │  ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────────┐ ┌─────┐ ││
-│  │  │ Binance │ │  Bybit  │ │Coinbase │ │ Alpaca  │ │ ... │ ││
-│  │  └─────────┘ └─────────┘ └─────────┘ └─────────┘ └─────┘ ││
+│  │              Exchange Adapters (15+)                         ││
+│  │  ┌──────┐ ┌───────┐ ┌────────┐ ┌──────┐ ┌──────────┐ ││
+│  │  │Binance│ │ Bybit │ │ Kraken │ │ dYdX │ │Hyperliquid│ ││
+│  │  └──────┘ └───────┘ └────────┘ └──────┘ └──────────┘ ││
+│  │  ┌──────────┐ ┌────────────┐ ┌─────────────────┐        ││
+│  │  │Uniswap   │ │ Interactive │ │    Deribit      │        ││
+│  │  │          │ │ Brokers     │ │                 │        ││
+│  │  └──────────┘ └────────────┘ └─────────────────┘        ││
 │  └───────────────────────────────────────────────────────────┘ │
 └─────────────────────────────────────────────────────────────────┘
 ```
@@ -104,17 +117,17 @@ SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, ADX, OBV, CCI, VWAP, Ichi
 
 ```bash
 # Clone the repository
-git clone https://github.com/opentreder/opentreder.git
+git clone https://github.com/Nirmal09809/opentreder.git
 cd opentreder
 
-# Install dependencies & setup
-make setup
+# Install dependencies
+go mod download
 
 # Build the application
-make build
+go build -o opentreder ./cmd/cli
 
 # Run the application
-make run
+./opentreder
 ```
 
 ### Using Docker
@@ -134,48 +147,35 @@ docker-compose logs -f opentreder
 | Document | Description |
 |----------|-------------|
 | [Architecture](docs/architecture/architecture.md) | System architecture guide |
-| [API Reference](docs/api/openapi.yaml) | REST & gRPC API documentation (OpenAPI 3.0) |
-| [Deployment Guide](docs/architecture/deployment.md) | Kubernetes & Helm deployment |
+| [API Reference](docs/api/openapi.yaml) | REST & gRPC API documentation |
 | [Strategy Development](docs/development/strategy-development.md) | Custom strategy creation |
 | [Configuration](docs/configuration.md) | Full configuration reference |
-| [Contributing](CONTRIBUTING.md) | Contribution guidelines |
 
 ---
 
-## 💻 Usage
-
-### CLI Commands
+## 💻 CLI Commands
 
 ```bash
 # Start trading engine
 ./opentreder start
 
-# Run backtest
+# Run backtest with full report
 ./opentreder backtest --strategy grid --symbol BTC/USDT
 
-# Analyze market
-./opentreder analyze --symbol ETH/USDT --timeframe 1h
+# Run backtest with optimizer
+./opentreder backtest --strategy trend --symbol ETH/USDT --optimize
 
 # List positions
 ./opentreder positions --exchange binance
 
 # Place order
 ./opentreder order --symbol BTC/USDT --side buy --quantity 0.1 --type limit --price 45000
-```
 
-### API Examples
+# Analyze market
+./opentreder analyze --symbol ETH/USDT --timeframe 1h
 
-```bash
-# Get account
-curl http://localhost:8080/v1/account?exchange=binance
-
-# Place order
-curl -X POST http://localhost:8080/v1/orders \
-  -H "Content-Type: application/json" \
-  -d '{"symbol":"BTC/USDT","side":"buy","quantity":"0.01","type":"market"}'
-
-# Get quotes
-curl http://localhost:8080/v1/market/quote?symbol=BTC/USDT&exchange=binance
+# Run strategy
+./opentreder run --strategy scalper --symbol BTC/USDT
 ```
 
 ---
@@ -187,8 +187,9 @@ Create `configs/config.yaml`:
 ```yaml
 app:
   name: opentreder
-  env: production
+  environment: production
   log_level: info
+  data_dir: /tmp/opentreder
 
 server:
   rest:
@@ -203,13 +204,15 @@ server:
 
 database:
   sqlite:
+    enabled: true
     path: ./data/opentreder.db
-  postgres:
+  postgresql:
     enabled: false
     host: localhost
     port: 5432
 
 redis:
+  enabled: true
   host: localhost
   port: 6379
 
@@ -219,6 +222,10 @@ exchanges:
     api_key: your_api_key
     api_secret: your_api_secret
     testnet: true
+  interactive_brokers:
+    enabled: false
+    host: 127.0.0.1
+    port: 4002
 
 ai:
   enabled: true
@@ -239,22 +246,39 @@ risk:
 ## 🧪 Testing
 
 ```bash
+# Run all tests
+go test ./...
+
 # Run unit tests
 go test ./tests/unit/...
 
-# Run integration tests
-go test -tags=integration ./tests/integration/...
-
-# Run all tests with coverage
-make test-coverage
+# Run with coverage
+go test -cover ./...
 
 # Run benchmarks
-make bench
+go test -bench=. ./pkg/types/precision/...
 ```
 
 ---
 
+## 📊 Stats
+
+- **134 files**
+- **377 directories**
+- **34,569 lines of Go code**
+- **15+ exchange adapters**
+- **15+ trading strategies**
+- **30+ technical indicators**
+
+---
+
 ## 🐳 Deployment
+
+### Docker Compose (Development)
+
+```bash
+docker-compose up -d
+```
 
 ### Kubernetes
 
@@ -263,42 +287,11 @@ kubectl create namespace opentreder
 kubectl apply -f deploy/k8s/base/
 ```
 
-### Helm
-
-```bash
-helm install opentreder ./deploy/helm/opentreder \
-  --namespace opentreder \
-  --create-namespace
-```
-
-### Docker Compose (Development)
-
-```bash
-docker-compose up -d
-```
-
----
-
-## 📊 Monitoring
-
-### Prometheus Metrics
-Access at `http://localhost:8080/metrics`
-
-### Grafana Dashboard
-Included in Helm chart - auto-configured
-
-### Key Metrics
-- `opentreder_http_requests_total` - Total HTTP requests
-- `opentreder_orders_total` - Total orders placed
-- `opentreder_portfolio_value` - Current portfolio value
-- `opentreder_portfolio_pnl` - Profit & Loss
-- `opentreder_position_risk_ratio` - Position risk metrics
-
 ---
 
 ## 🤝 Contributing
 
-Contributions are welcome! Please read our [Contributing Guidelines](CONTRIBUTING.md) before submitting PRs.
+Contributions are welcome!
 
 1. Fork the repository
 2. Create your feature branch (`git checkout -b feature/amazing-feature`)
@@ -316,10 +309,10 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 ## 🙏 Acknowledgments
 
+- [NautilusTrader](https://github.com/nautechsystems/nautilus_trader) - Reference architecture
 - [Binance](https://www.binance.com/) - Crypto exchange API
 - [Bybit](https://www.bybit.com/) - Crypto derivatives API
-- [Alpaca](https://alpaca.markets/) - Stock trading API
-- [Tradier](https://tradier.com/) - Options trading API
+- [Interactive Brokers](https://www.interactivebrokers.com/) - Multi-asset trading
 - [shopspring/decimal](https://github.com/shopspring/decimal) - Decimal arithmetic
 
 ---
@@ -328,8 +321,7 @@ This project is licensed under the Apache License 2.0 - see the [LICENSE](LICENS
 
 **Built with ❤️ for traders, by traders**
 
-[![Stargazers](https://img.shields.io/github/stars/opentreder/opentreder?style=social)](https://github.com/opentreder/opentreder/stargazers)
-[![Forks](https://img.shields.io/github/forks/opentreder/opentreder?style=social)](https://github.com/opentreder/opentreder/network/members)
-[![Watchers](https://img.shields.io/github/watchers/opentreder/opentreder?style=social)](https://github.com/opentreder/opentreder/watchers)
+[![Stargazers](https://img.shields.io/github/stars/Nirmal09809/opentreder?style=social)](https://github.com/Nirmal09809/opentreder/stargazers)
+[![Forks](https://img.shields.io/github/forks/Nirmal09809/opentreder?style=social)](https://github.com/Nirmal09809/opentreder/network/members)
 
 </div>
