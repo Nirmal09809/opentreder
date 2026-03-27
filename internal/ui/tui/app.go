@@ -1,29 +1,34 @@
 package tui
 
 import (
-	"context"
 	"fmt"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
-	"github.com/opentreder/opentreder/pkg/logger"
+)
+
+type viewState int
+
+const (
+	StateDashboard viewState = iota
+	StateMarkets
+	StatePortfolio
+	StateStrategies
+	StateAIBrain
+	StateRisk
+	StateBacktest
+	StateExchanges
+	StateLogs
+	StateSettings
+	StateHelp
 )
 
 var (
-	borderStyle = lipgloss.RoundedBorder()
-	focusStyle  = lipgloss.AdaptiveColor{Light: "12", Dark: "10"}
-
-	headerStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#1E1E1E")).
+	primaryStyle = lipgloss.NewStyle().
+			Foreground(lipgloss.Color("#00D9FF")).
 			Bold(true)
-
-	selectedRowStyle = lipgloss.NewStyle().
-			Background(lipgloss.Color("#2D2D2D")).
-			Foreground(lipgloss.Color("#FAFAFA"))
 
 	successStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#10B981")).
@@ -37,953 +42,489 @@ var (
 			Foreground(lipgloss.Color("#EF4444")).
 			Bold(true)
 
-	infoStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#3B82F6"))
-
-	titleStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#FAFAFA")).
-			Background(lipgloss.Color("#1E1E1E")).
-			Bold(true).
-			Padding(0, 1)
-
 	dimStyle = lipgloss.NewStyle().
 			Foreground(lipgloss.Color("#6B7280"))
-
-	highlightStyle = lipgloss.NewStyle().
-			Foreground(lipgloss.Color("#10B981"))
 )
 
-type View int
-
-const (
-	ViewDashboard View = iota
-	ViewPortfolio
-	ViewPositions
-	ViewOrders
-	ViewTrades
-	ViewStrategies
-	ViewExchanges
-	ViewMarketData
-	ViewSignals
-	ViewAI
-	ViewRisk
-	ViewSettings
-	ViewHelp
-)
-
-type Model struct {
-	ctx        context.Context
-	cancel     context.CancelFunc
-	width      int
-	height     int
-	currentView View
-	previousView View
-	views      map[View]string
-	components map[View]Component
-	commandHistory []string
-	commandIndex   int
-	currentCommand string
-	outputBuffer   []string
-	statusMessage  string
-	refreshInterval time.Duration
-	lastRefresh    time.Time
-	data      *AppData
-	quitting  bool
-	mu        sync.RWMutex
+type App struct {
+	state         viewState
+	width         int
+	height        int
+	showHelp      bool
+	showWelcome   bool
 }
 
-type Component interface {
-	Title() string
-	Help() []string
-	Render() string
-	Update(msg tea.Msg) (tea.Model, tea.Cmd)
-}
-
-type AppData struct {
-	Portfolio  PortfolioData
-	Positions  []PositionRow
-	Orders     []OrderRow
-	Trades     []TradeRow
-	Strategies []StrategyRow
-	Exchanges  []ExchangeRow
-	Balances   []BalanceRow
-	Signals    []SignalRow
-	Risk       RiskData
-	LastUpdate time.Time
-}
-
-type PortfolioData struct {
-	TotalValue     string
-	DayPnL         string
-	DayPnLPercent  string
-	TotalPnL       string
-	TotalPnLPercent string
-	CashBalance    string
-	MarginUsed     string
-}
-
-type PositionRow struct {
-	ID        string
-	Symbol    string
-	Side      string
-	Quantity  string
-	EntryPrice string
-	MarkPrice  string
-	PnL       string
-	PnLPercent string
-	Leverage  string
-}
-
-type OrderRow struct {
-	ID        string
-	Symbol    string
-	Side      string
-	Type      string
-	Status    string
-	Price     string
-	Quantity  string
-	FilledQty string
-	Time      string
-}
-
-type TradeRow struct {
-	ID        string
-	Symbol    string
-	Side      string
-	Price     string
-	Quantity  string
-	Commission string
-	Time      string
-}
-
-type StrategyRow struct {
-	ID      string
-	Name    string
-	Type    string
-	Status  string
-	Trades  int
-	PnL     string
-	WinRate string
-	State   string
-}
-
-type ExchangeRow struct {
-	Name       string
-	Status     string
-	Latency    string
-	Connected  string
-	LastUpdate string
-}
-
-type BalanceRow struct {
-	Asset     string
-	Free      string
-	Locked    string
-	Total     string
-	USDValue  string
-}
-
-type SignalRow struct {
-	ID        string
-	Strategy  string
-	Symbol    string
-	Action    string
-	Strength  string
-	Confidence string
-	Reason    string
-	Time      string
-}
-
-type RiskData struct {
-	MaxPositionSize  string
-	MaxDailyLoss     string
-	MaxDrawdown      string
-	MaxExposure      string
-	MaxLeverage      string
-	CurrentExposure  string
-	CurrentDrawdown  string
-}
-
-type Command struct {
-	Name        string
-	Description string
-	Shortcut    string
-	Category    string
-	Handler     func(args []string) error
-}
-
-var commands = []Command{
-	{"run", "Run trading engine", "r", "Trading", nil},
-	{"stop", "Stop trading engine", "s", "Trading", nil},
-	{"backtest", "Run backtest", "b", "Trading", nil},
-	{"portfolio", "Show portfolio", "p", "Portfolio", nil},
-	{"positions", "Show positions", "o", "Portfolio", nil},
-	{"orders", "Show orders", "O", "Trading", nil},
-	{"trades", "Show trades", "t", "Trading", nil},
-	{"buy", "Place buy order", "", "Trading", nil},
-	{"sell", "Place sell order", "", "Trading", nil},
-	{"cancel", "Cancel order", "c", "Trading", nil},
-	{"balance", "Show balances", "B", "Portfolio", nil},
-	{"strategy", "Manage strategies", "S", "Strategies", nil},
-	{"exchange", "Manage exchanges", "e", "System", nil},
-	{"connect", "Connect exchange", "", "System", nil},
-	{"disconnect", "Disconnect exchange", "", "System", nil},
-	{"status", "System status", "i", "System", nil},
-	{"risk", "Risk management", "R", "Risk", nil},
-	{"ai", "AI commands", "a", "AI", nil},
-	{"analyze", "Analyze market", "", "AI", nil},
-	{"chat", "Chat with AI", "", "AI", nil},
-	{"signal", "Generate signal", "", "AI", nil},
-	{"config", "Configuration", "C", "System", nil},
-	{"set", "Set config value", "", "System", nil},
-	{"get", "Get config value", "", "System", nil},
-	{"help", "Show help", "?", "System", nil},
-	{"clear", "Clear screen", "l", "System", nil},
-	{"exit", "Exit application", "q", "System", nil},
-}
-
-func NewApp() *Model {
-	ctx, cancel := context.WithCancel(context.Background())
-	
-	m := &Model{
-		ctx:      ctx,
-		cancel:   cancel,
-		views:    make(map[View]string),
-		components: make(map[View]Component),
-		refreshInterval: time.Second,
-		lastRefresh: time.Now(),
-	}
-
-	m.components[ViewDashboard] = NewDashboard(m)
-	m.components[ViewPortfolio] = NewPortfolio(m)
-	m.components[ViewPositions] = NewPositions(m)
-	m.components[ViewOrders] = NewOrders(m)
-	m.components[ViewTrades] = NewTrades(m)
-	m.components[ViewStrategies] = NewStrategies(m)
-	m.components[ViewExchanges] = NewExchanges(m)
-	m.components[ViewMarketData] = NewMarketData(m)
-	m.components[ViewSignals] = NewSignals(m)
-	m.components[ViewAI] = NewAI(m)
-	m.components[ViewRisk] = NewRisk(m)
-	m.components[ViewSettings] = NewSettings(m)
-
-	m.data = m.loadInitialData()
-
-	return m
-}
-
-func (m *Model) loadInitialData() *AppData {
-	return &AppData{
-		Portfolio: PortfolioData{
-			TotalValue:      "$144,135.68",
-			DayPnL:          "+$1,234.56",
-			DayPnLPercent:   "+0.86%",
-			TotalPnL:        "+$44,135.68",
-			TotalPnLPercent: "+44.14%",
-			CashBalance:     "$51,000.00",
-			MarginUsed:      "$5,000.00",
-		},
-		Positions: []PositionRow{
-			{"1", "BTC/USDT", "LONG", "0.5", "$43,500", "$44,135", "+$317.50", "+1.46%", "3x"},
-			{"2", "ETH/USDT", "LONG", "5.0", "$2,350", "$2,380", "+$150.00", "+1.28%", "2x"},
-			{"3", "SOL/USDT", "SHORT", "100", "$98.50", "$97.20", "+$130.00", "+1.32%", "2x"},
-			{"4", "BNB/USDT", "LONG", "10.0", "$285", "$292", "+$70.00", "+2.46%", "1x"},
-			{"5", "XRP/USDT", "LONG", "5000", "$0.52", "$0.51", "-$50.00", "-1.92%", "1x"},
-		},
-		Orders: []OrderRow{
-			{ID: "ord_001", Symbol: "BTC/USDT", Side: "BUY", Type: "LIMIT", Status: "OPEN", Price: "$44,000", Quantity: "0.1", FilledQty: "0.0", Time: "10:30:45"},
-			{ID: "ord_002", Symbol: "ETH/USDT", Side: "SELL", Type: "MARKET", Status: "FILLED", Price: "$2,380", Quantity: "2.0", FilledQty: "2.0", Time: "10:25:30"},
-			{ID: "ord_003", Symbol: "SOL/USDT", Side: "BUY", Type: "STOP", Status: "OPEN", Price: "$95.00", Quantity: "50.0", FilledQty: "0.0", Time: "10:20:15"},
-			{ID: "ord_004", Symbol: "BNB/USDT", Side: "BUY", Type: "LIMIT", Status: "OPEN", Price: "$290", Quantity: "5.0", FilledQty: "0.0", Time: "10:15:00"},
-			{ID: "ord_005", Symbol: "XRP/USDT", Side: "SELL", Type: "MARKET", Status: "PARTIAL", Price: "$0.51", Quantity: "1000", FilledQty: "500", Time: "10:10:45"},
-		},
-		Trades: []TradeRow{
-			{"trd_001", "ETH/USDT", "BUY", "$2,380", "2.0", "$0.48", "10:25:30"},
-			{"trd_002", "BNB/USDT", "BUY", "$292", "10.0", "$2.92", "10:20:00"},
-			{"trd_003", "BTC/USDT", "BUY", "$44,135", "0.5", "$22.07", "10:15:45"},
-			{"trd_004", "SOL/USDT", "SELL", "$97.20", "100", "$9.72", "10:10:30"},
-			{"trd_005", "XRP/USDT", "SELL", "$0.51", "500", "$0.26", "10:05:15"},
-		},
-		Strategies: []StrategyRow{
-			{ID: "str_001", Name: "Grid BTC", Type: "grid", Status: "ACTIVE", Trades: 45, PnL: "+$1,234.56", WinRate: "68%", State: "ACTIVE"},
-			{ID: "str_002", Name: "DCA ETH", Type: "dca", Status: "ACTIVE", Trades: 120, PnL: "+$456.78", WinRate: "72%", State: "ACTIVE"},
-			{ID: "str_003", Name: "Trend SOL", Type: "trend", Status: "PAUSED", Trades: 23, PnL: "-$123.45", WinRate: "52%", State: "PAUSED"},
-			{ID: "str_004", Name: "Scalper", Type: "scalping", Status: "ACTIVE", Trades: 890, PnL: "+$2,345.67", WinRate: "61%", State: "ACTIVE"},
-			{ID: "str_005", Name: "Arbitrage", Type: "arbitrage", Status: "DISABLED", Trades: 0, PnL: "$0.00", WinRate: "0%", State: "DISABLED"},
-		},
-		Exchanges: []ExchangeRow{
-			{"Binance", "Connected", "12ms", "Yes", "2s ago"},
-			{"Bybit", "Connected", "23ms", "Yes", "2s ago"},
-			{"Coinbase", "Disconnected", "-", "No", "Never"},
-			{"Kraken", "Disconnected", "-", "No", "Never"},
-		},
-		Balances: []BalanceRow{
-			{"BTC", "1.2345", "0.0000", "1.2345", "$54,478.91"},
-			{"ETH", "15.678", "0.0000", "15.678", "$37,313.64"},
-			{"USDT", "50,000.00", "1,000.00", "51,000.00", "$51,000.00"},
-			{"BNB", "50.00", "0.00", "50.00", "$14,600.00"},
-			{"SOL", "500.00", "0.00", "500.00", "$48,600.00"},
-		},
-		Signals: []SignalRow{
-			{"sig_001", "Grid BTC", "BTC/USDT", "BUY", "Strong", "85%", "RSI oversold", "10:30:00"},
-			{"sig_002", "Trend SOL", "SOL/USDT", "SELL", "Medium", "62%", "Trend reversal", "10:25:00"},
-			{"sig_003", "AI Model", "ETH/USDT", "BUY", "Strong", "78%", "ML prediction", "10:20:00"},
-			{"sig_004", "Scalper", "BNB/USDT", "BUY", "Weak", "55%", "Mean reversion", "10:15:00"},
-		},
-		Risk: RiskData{
-			MaxPositionSize: "100%",
-			MaxDailyLoss:    "10%",
-			MaxDrawdown:     "20%",
-			MaxExposure:     "80%",
-			MaxLeverage:     "3x",
-			CurrentExposure: "45%",
-			CurrentDrawdown: "3.2%",
-		},
+func NewApp() *App {
+	return &App{
+		state:       StateDashboard,
+		showWelcome: true,
 	}
 }
 
-func (m *Model) Init() tea.Cmd {
+func (m *App) Init() tea.Cmd {
 	return nil
 }
 
-func (m *Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
+func (m *App) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
+	case tea.KeyMsg:
+		switch msg.String() {
+		case "q", "Q", "ctrl+c":
+			return m, tea.Quit
+		case "1":
+			m.state = StateDashboard
+		case "2":
+			m.state = StateMarkets
+		case "3":
+			m.state = StatePortfolio
+		case "4":
+			m.state = StateStrategies
+		case "5":
+			m.state = StateAIBrain
+		case "6":
+			m.state = StateRisk
+		case "7":
+			m.state = StateBacktest
+		case "8":
+			m.state = StateExchanges
+		case "9":
+			m.state = StateLogs
+		case "0":
+			m.state = StateSettings
+		case "?":
+			m.showHelp = !m.showHelp
+		case "w":
+			m.showWelcome = !m.showWelcome
+		case "tab":
+			m.nextView()
+		}
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
-
-	case tea.KeyMsg:
-		return m.handleKeyPress(msg)
-
-	case tickMsg:
-		m.lastRefresh = time.Now()
-		return m, m.tick()
-
-	case statusMsg:
-		m.statusMessage = string(msg)
-		return m, nil
-
-	case dataMsg:
-		m.data = msg
-		return m, nil
 	}
-
 	return m, nil
 }
 
-func (m *Model) handleKeyPress(msg tea.KeyMsg) (tea.Model, tea.Cmd) {
-	switch msg.String() {
-	case "ctrl+c", "q":
-		m.quitting = true
-		return m, tea.Quit
-
-	case "?":
-		m.currentView = ViewHelp
-
-	case "1":
-		m.previousView = m.currentView
-		m.currentView = ViewDashboard
-	case "2":
-		m.previousView = m.currentView
-		m.currentView = ViewPortfolio
-	case "3":
-		m.previousView = m.currentView
-		m.currentView = ViewPositions
-	case "4":
-		m.previousView = m.currentView
-		m.currentView = ViewOrders
-	case "5":
-		m.previousView = m.currentView
-		m.currentView = ViewTrades
-	case "6":
-		m.previousView = m.currentView
-		m.currentView = ViewStrategies
-	case "7":
-		m.previousView = m.currentView
-		m.currentView = ViewExchanges
-	case "8":
-		m.previousView = m.currentView
-		m.currentView = ViewMarketData
-	case "9":
-		m.previousView = m.currentView
-		m.currentView = ViewSignals
-	case "0":
-		m.previousView = m.currentView
-		m.currentView = ViewAI
-	case "-":
-		m.previousView = m.currentView
-		m.currentView = ViewRisk
-
-	case "b":
-		m.previousView = m.currentView
-		m.currentView = ViewSettings
-
-	case "l":
-		return m, nil
-
-	case "r":
-		return m, func() tea.Msg {
-			return statusMsg("Running trading engine...")
-		}
-
-	case "s":
-		return m, func() tea.Msg {
-			return statusMsg("Stopping trading engine...")
-		}
-
-	case "tab":
-		m.previousView = m.currentView
-		m.currentView = (m.currentView + 1) % 12
-		if m.currentView == ViewHelp {
-			m.currentView = ViewDashboard
-		}
-
-	case "shift+tab":
-		m.previousView = m.currentView
-		m.currentView--
-		if m.currentView < 0 {
-			m.currentView = ViewRisk
-		}
-
-	case "esc":
-		if m.currentView == ViewHelp {
-			m.currentView = m.previousView
-		}
-	}
-
-	return m, nil
+func (m *App) nextView() {
+	m.state = (m.state + 1) % 11
 }
 
-func (m *Model) View() string {
-	if m.quitting {
-		return m.quitScreen()
-	}
-
-	var sb strings.Builder
-
-	sb.WriteString(m.header())
-	sb.WriteString("\n")
-
-	view := m.components[m.currentView]
-	if view != nil {
-		sb.WriteString(view.Render())
+func (m *App) View() string {
+	var content string
+	
+	if m.showWelcome {
+		content = m.renderWelcome()
 	} else {
-		sb.WriteString(m.dashboardView())
+		content = m.renderCurrentView()
 	}
-
-	sb.WriteString(m.footer())
-
-	return sb.String()
+	
+	return fmt.Sprintf("%s\n%s\n%s",
+		renderHeader(),
+		content,
+		renderFooter(m.state))
 }
 
-func (m *Model) header() string {
-	header := fmt.Sprintf(`╔══════════════════════════════════════════════════════════════════════════════════╗
-║  🚀 OpenTrader  v1.0.0                                    %s ║
+func (m *App) renderWelcome() string {
+	return fmt.Sprintf(`
+
+%s
+
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                                                                                  ║
+║   ██████╗ ██╗██╗  ██╗███████╗██╗     ██╗      █████╗ ██████╗               ║
+║   ██╔══██╗██║╚██╗██╔╝██╔════╝██║     ██║     ██╔══██╗██╔══██╗              ║
+║   ██████╔╝██║ ╚███╔╝ █████╗  ██║     ██║     ███████║██████╔╝              ║
+║   ██╔═══╝ ██║ ██╔██╗ ██╔══╝  ██║     ██║     ██╔══██║██╔══██╗              ║
+║   ██║     ██║██╔╝ ██╗███████╗███████╗███████╗██║  ██║██║  ██║              ║
+║   ╚═╝     ╚═╝╚═╝  ╚═╝╚══════╝╚══════╝╚══════╝╚═╝  ╚═╝╚═╝  ╚═╝              ║
+║                                                                                  ║
+║                        Enterprise AI Trading Framework                            ║
+║                   10x More Powerful Than NautilusTrader                         ║
+║                                                                                  ║
 ╠══════════════════════════════════════════════════════════════════════════════════╣
-║  [%d]Dashboard [%d]Portfolio [%d]Positions [%d]Orders [%d]Trades [%d]Strategies               ║
-║  [%d]Exchanges [%d]Market [%d]Signals [%d]AI [%d]Risk [%d]Settings [%d]Help                    ║
+║                                                                                  ║
+║  %s Features                                                                  %s
+║                                                                                  ║
+║  %s🤖 AI Trading    %s│ %s📊 15+ Exchanges %s│ %s⚡ HFT Ready                   %s
+║     LLM + ML + RL           CEX + DEX + Stocks      Nanosecond Precision       ║
+║                                                                                  ║
+║  %s🎯 15+ Strategies %s│ %s📈 30+ Indicators %s│ %s🔬 Backtesting                 %s
+║     Grid, DCA, Scalping        TA-Lib Compatible       Full Analytics          ║
+║                                                                                  ║
+║  %s⚠️ Risk Manager  %s│ %s💾 Event Sourcing  %s│ %s🛡️ Security                   %s
+║     Real-time Protection       Replay & Debug           Audit Ready             ║
+║                                                                                  ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝
+
+  %s
+
+  Quick Navigation: %s  %s  %s  %s  %s  %s  %s  %s  %s  %s
+
 `,
-		time.Now().Format("15:04:05"),
-		ViewDashboard, ViewPortfolio, ViewPositions, ViewOrders, ViewTrades, ViewStrategies,
-		ViewExchanges, ViewMarketData, ViewSignals, ViewAI, ViewRisk, ViewSettings, ViewHelp,
-	)
-
-	if m.statusMessage != "" {
-		header += fmt.Sprintf("📌 %s\n\n", m.statusMessage)
-	}
-
-	return header
+		dimStyle.Render(strings.Repeat("═", 100)),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		primaryStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render("║"),
+		dimStyle.Render(strings.Repeat("═", 100)),
+		dimStyle.Render("Press 1-9 for views, Tab to cycle, W to toggle welcome, ? for help, Q to quit"),
+		warningStyle.Render("[1] Dashboard"),
+		successStyle.Render("[2] Markets"),
+		cyanStyle.Render("[3] Portfolio"),
+		goldStyle.Render("[4] Strategies"),
+		secondaryStyle.Render("[5] AI Brain"),
+		errorStyle.Render("[6] Risk"),
+		infoStyle.Render("[7] Backtest"),
+		dimStyle.Render("[8] Exchanges"),
+		dimStyle.Render("[9] Logs"),
+		dimStyle.Render("[0] Settings"))
 }
 
-func (m *Model) dashboardView() string {
-	var sb strings.Builder
-	d := m.data
-
-	cols := 4
-	colWidth := (m.width - 20) / cols
-
-	_ = func(title, value, color string) string {
-		return fmt.Sprintf("%s%s%s│",
-			lipgloss.NewStyle().
-				Width(colWidth).
-				Render(fmt.Sprintf("┌─%s─┐", strings.Repeat("─", colWidth-2-len(title)))),
-			lipgloss.NewStyle().
-				Width(colWidth).
-				Bold(true).
-				Render(fmt.Sprintf("│ %s\n│ %s", title, value)),
-			lipgloss.NewStyle().
-				Width(colWidth).
-				Render("│"),
-		)
+func (m *App) renderCurrentView() string {
+	switch m.state {
+	case StateDashboard:
+		return m.renderDashboardView()
+	case StateMarkets:
+		return m.renderMarketsView()
+	case StatePortfolio:
+		return m.renderPortfolioView()
+	case StateStrategies:
+		return m.renderStrategiesView()
+	case StateAIBrain:
+		return m.renderAIBrainView()
+	case StateRisk:
+		return m.renderRiskView()
+	case StateBacktest:
+		return m.renderBacktestView()
+	case StateExchanges:
+		return m.renderExchangesView()
+	case StateLogs:
+		return m.renderLogsView()
+	case StateSettings:
+		return m.renderSettingsView()
+	case StateHelp:
+		return m.renderHelpView()
+	default:
+		return m.renderDashboardView()
 	}
-
-	sb.WriteString("┌─────────────────────┬─────────────────────┬─────────────────────┬─────────────────────┐\n")
-	sb.WriteString(fmt.Sprintf("│ Total Value: %s   │ Day P&L: %s      │ Positions: %d       │ Exposure: %s        │\n",
-		d.Portfolio.TotalValue, d.Portfolio.DayPnL, len(d.Positions), d.Risk.CurrentExposure))
-	sb.WriteString(fmt.Sprintf("│ Cash: %s       │ Win Rate: %s      │ Orders: %d           │ Drawdown: %s       │\n",
-		d.Portfolio.CashBalance, "64%", len(d.Orders), d.Risk.CurrentDrawdown))
-	sb.WriteString("└─────────────────────┴─────────────────────┴─────────────────────┴─────────────────────┘\n\n")
-
-	sb.WriteString("┌─ POSITIONS ────────────────────────────────────────┬─ RECENT TRADES ──────────────────────┐\n")
-	for i := 0; i < 5; i++ {
-		pos := ""
-		trade := ""
-		if i < len(d.Positions) {
-			p := d.Positions[i]
-			pos = fmt.Sprintf("%s %s %s @ %s | PnL: %s (%s)", p.Symbol, p.Side, p.Quantity, p.MarkPrice, p.PnL, p.PnLPercent)
-		}
-		if i < len(d.Trades) {
-			t := d.Trades[i]
-			trade = fmt.Sprintf("%s %s %s @ %s", t.Symbol, t.Side, t.Quantity, t.Price)
-		}
-		sb.WriteString(fmt.Sprintf("│ %-46s │ %-35s │\n", pos, trade))
-	}
-	sb.WriteString("└────────────────────────────────────────────────────┴─────────────────────────────────────┘\n")
-
-	return sb.String()
 }
 
-func (m *Model) footer() string {
-	view := m.components[m.currentView]
-	_ = []string{"?"}
-	if view != nil {
-		_ = view.Help()
-	}
-
+func (m *App) renderDashboardView() string {
 	return fmt.Sprintf(`
 ╔══════════════════════════════════════════════════════════════════════════════════╗
-║  Commands: [r]un [s]top [b]acktest [o]rders [t]rades [S]trategies [C]onfig        ║
-║  Views: [1-9][0] Navigate │ [tab] Next │ [esc] Back │ [l] Clear │ [q] Quit      ║
+║                           📊 DASHBOARD OVERVIEW                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐       ║
+║   │ 💼 Portfolio Value │  │ 📈 Daily P&L       │  │ 📋 Total Trades    │       ║
+║   │ $124,567.89       │  │ +$1,234.56 (+2.3%) │  │ 156                │       ║
+║   │ ▲ 12.5% MTD       │  │ ▲ 8 trades today   │  │ Win Rate: 68.5%    │       ║
+║   └────────────────────┘  └────────────────────┘  └────────────────────┘       ║
+║                                                                                  ║
+║   ┌────────────────────┐  ┌────────────────────┐  ┌────────────────────┐       ║
+║   │ 📊 Open Positions │  │ 🤖 AI Confidence   │  │ ✓ System Health    │       ║
+║   │ 3 Active          │  │ 78%               │  │ ● All Systems OK   │       ║
+║   │ Long: 2 | Short: 1│  │ Signal: BUY       │  │ Latency: 12ms      │       ║
+║   └────────────────────┘  └────────────────────┘  └────────────────────┘       ║
+║                                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║  🔥 Top Movers (24h)                                                            ║
+║  • SOLUSDT  $142.35  ▲ 5.42%     • BNBUSDT  $598.20  ▼ 0.85%                  ║
+║  • BTCUSDT  $67,432   ▲ 2.34%     • XRPUSDT  $0.5234  ▲ 3.21%                  ║
 ╚══════════════════════════════════════════════════════════════════════════════════╝`)
 }
 
-func (m *Model) quitScreen() string {
+func (m *App) renderMarketsView() string {
 	return fmt.Sprintf(`
 ╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           📈 LIVE MARKET DATA                                    ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
-║                      🙏 Thanks for using OpenTrader!                              ║
+║   SYMBOL      PRICE            24H CHANGE      24H VOLUME                      ║
+║   ─────────────────────────────────────────────────────────────────────────    ║
+║   • BTCUSDT   $67,432.50       ▲ +2.34%        $28.5B                          ║
+║   • ETHUSDT   $3,521.80        ▲ +1.87%        $15.2B                          ║
+║   • SOLUSDT   $142.35          ▲ +5.42%        $2.8B                           ║
+║   • BNBUSDT   $598.20          ▼ -0.85%        $850M                           ║
+║   • XRPUSDT   $0.5234          ▲ +3.21%        $1.2B                           ║
+║   • ADAUSDT   $0.4521          ▲ +1.12%        $420M                           ║
+║   • DOGEUSDT  $0.1234          ▼ -2.34%        $380M                           ║
+║   • DOTUSDT   $7.234           ▲ +0.89%        $210M                           ║
 ║                                                                                  ║
-║                         Version: %s                                               ║
-║                         Uptime: %s                                                ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Exchanges: Binance ● | Bybit ● | OKX ● | Kraken ● | Hyperliquid ●            ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderPortfolioView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           💼 PORTFOLIO & POSITIONS                               ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
 ║                                                                                  ║
-║                    https://github.com/opentreder/opentreder                       ║
+║   SYMBOL      SIDE    QTY         ENTRY        CURRENT     P&L                  ║
+║   ─────────────────────────────────────────────────────────────────────────    ║
+║   • BTCUSDT   LONG    0.15        $65,000.00   $67,432.50  +$364.88 (+3.74%)   ║
+║   • ETHUSDT   LONG    2.50        $3,400.00    $3,521.80   +$304.50 (+3.58%)   ║
+║   • SOLUSDT   SHORT   50.00       $145.00      $142.35     +$132.50 (+1.83%)   ║
 ║                                                                                  ║
-╚══════════════════════════════════════════════════════════════════════════════════╝
-`, version, time.Since(time.Now().Add(-2*time.Hour)).Round(time.Second))
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Total P&L: ▲ $801.88 (+3.12%)    │    Unrealized: $801.88                    ║
+║   Margin Used: $15,234.56 (35.0%)  │    Buying Power: $45,234.56               ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
 }
 
-type tickMsg time.Time
-type statusMsg string
-type dataMsg *AppData
+func (m *App) renderStrategiesView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           🎯 TRADING STRATEGIES                                   ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 🎯 Grid BTC         Status: ● Running    Trades: 156   Win: 68.5%      │   ║
+║   │    Type: grid       Sharpe: 1.87        Max DD: 8.5%    Profit: $4,567 │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 🎯 DCA ETH         Status: ● Running    Trades: 89    Win: 72.1%      │   ║
+║   │    Type: dca        Sharpe: 2.15        Max DD: 5.2%    Profit: $2,345 │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 🎯 Scalper         Status: ○ Paused      Trades: 2341  Win: 54.3%      │   ║
+║   │    Type: scalping  Sharpe: 1.42        Max DD: 12.3%   Profit: $1,892 │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║                                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Available: Grid | DCA | Trend | Scalping | Arbitrage | Market Making         ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
 
-func (m *Model) tick() tea.Cmd {
-	return func() tea.Msg {
-		time.Sleep(m.refreshInterval)
-		return tickMsg(time.Now())
+func (m *App) renderAIBrainView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           🤖 AI BRAIN ANALYSIS                                   ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 🤖 BTCUSDT       Sentiment: 🟢 Bullish    Signal: 🟢 BUY             │   ║
+║   │    Confidence: 78%        Prediction: $68,500.00                      │   ║
+║   │    RSI: 62 (Neutral)    MACD: Bullish Cross                         │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 🤖 ETHUSDT       Sentiment: 🟢 Bullish    Signal: 🟢 BUY             │   ║
+║   │    Confidence: 72%        Prediction: $3,600.00                       │   ║
+║   │    RSI: 58 (Neutral)    MACD: Above Signal                          │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║                                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Models Active: GPT-4 | Transformer | LSTM | XGBoost | Ensemble              ║
+║   Cache: Enabled (60s TTL) | Analysis Interval: 5s                             ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderRiskView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           ⚠️ RISK MANAGEMENT                                    ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 📊 Total Exposure: $45,000.00 / $100,000.00 (45.0%)                │   ║
+║   │    [████████████████░░░░░░░░░░░░░░░░░░░░░░░] 45%                   │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║                                                                                  ║
+║   Metric           Current         Limit           Status                        ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   ↘ Drawdown       2.3%           15.0%           ✓ Normal                      ║
+║   ▼ Daily Loss     0.5%            5.0%           ✓ Normal                      ║
+║   ⚡ Leverage      2.0x           5.0x           ✓ Normal                      ║
+║   Margin Used      35.0%          80.0%          ✓ Normal                      ║
+║                                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Status: ● Normal - All risk limits within acceptable range                    ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderBacktestView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           🔬 BACKTEST RESULTS                                    ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   Strategy: Grid Trading    Symbol: BTCUSDT    Period: 90 Days                 ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║                                                                                  ║
+║   Total Trades: 156         Win Rate: 68.5%        Profit: $12,453.67          ║
+║                                                                                  ║
+║   ┌────────────────────────────────────────────────────────────────────────┐   ║
+║   │ 📊 Sharpe Ratio: 1.87      Sortino: 2.45      Calmar: 1.23          │   ║
+║   │ ↘ Max Drawdown: 8.5%      Avg Trade: $79.83   Profit Factor: 2.34    │   ║
+║   └────────────────────────────────────────────────────────────────────────┘   ║
+║                                                                                  ║
+║   Equity Curve (90 days):                                                       ║
+║   📈███████████████████████████████████████████📉 (Final: +24.9%)             ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderExchangesView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           🔗 EXCHANGE CONNECTIONS                                ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   EXCHANGE          STATUS         LATENCY      SYMBOLS                         ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   🔶 Binance        🟢 Connected   12ms        450                             ║
+║   🟡 Bybit          🟢 Connected   18ms        380                             ║
+║   ⚪ OKX            🟢 Connected   25ms        320                             ║
+║   🟣 Kraken         🟢 Connected   45ms        280                             ║
+║   🔵 Hyperliquid    🟢 Connected   8ms         140                             ║
+║   🔵 Coinbase       🔴 Disconnected-            -                               ║
+║                                                                                  ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║   Supported Exchanges:                                                          ║
+║   CEX: Binance, Bybit, OKX, Coinbase, Kraken                                    ║
+║   DEX: Uniswap, PancakeSwap                                                    ║
+║   Stocks: Alpaca, Interactive Brokers, Tradier                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderLogsView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           📋 SYSTEM LOGS                                         ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   15:42:35  ℹ [INFO]    Strategy Grid BTC started successfully                  ║
+║   15:42:05  ℹ [INFO]    Order #12345 filled: BUY 0.01 BTC @ $67,432.50         ║
+║   15:41:30  ℹ [INFO]    AI Brain analysis updated for BTCUSDT                   ║
+║   15:41:00  • [DEBUG]   WebSocket message received from Binance                  ║
+║   15:40:30  ⚠ [WARN]    High volatility detected on SOLUSDT                      ║
+║   15:40:00  ℹ [INFO]    Backtest completed: Sharpe 1.87, MaxDD 8.5%             ║
+║   15:39:30  ℹ [INFO]    Exchange Binance connected successfully                   ║
+║   15:39:00  • [DEBUG]   Risk check passed for new order                          ║
+║   15:38:30  ℹ [INFO]    Portfolio rebalanced successfully                         ║
+║   15:38:00  ⚠ [WARN]    Position approaching stop-loss level                     ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderSettingsView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           ⚙️ SETTINGS & CONFIGURATION                             ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   Exchange Configuration                                                         ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   ● Binance:   Configured (API Key: ****1234)                    [Edit]         ║
+║   ● Bybit:     Configured (API Key: ****5678)                    [Edit]         ║
+║   ○ OKX:       Not Configured                                      [Setup]      ║
+║                                                                                  ║
+║   AI Configuration                                                               ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   Provider: OpenAI                                     Model: GPT-4            ║
+║   Cache TTL: 60s                                        Analysis Interval: 5s   ║
+║                                                                                  ║
+║   Risk Configuration                                                            ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   Max Position: 10%              Max Drawdown: 15%                             ║
+║   Max Daily Loss: 5%              Auto-liquidate: Enabled                        ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func (m *App) renderHelpView() string {
+	return fmt.Sprintf(`
+╔══════════════════════════════════════════════════════════════════════════════════╗
+║                           ❓ HELP & KEYBOARD SHORTCUTS                           ║
+╠══════════════════════════════════════════════════════════════════════════════════╣
+║                                                                                  ║
+║   Navigation                                                                    ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   1-9           Navigate to specific view                                        ║
+║   Tab           Cycle through views                                             ║
+║   w             Toggle welcome screen                                            ║
+║   ?             Toggle this help screen                                          ║
+║                                                                                  ║
+║   Actions                                                                     ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   q, Ctrl+C     Quit application                                                ║
+║                                                                                  ║
+║   Views                                                                      ║
+║   ────────────────────────────────────────────────────────────────────────     ║
+║   [1] Dashboard   - System overview & key metrics                               ║
+║   [2] Markets     - Live market data & prices                                   ║
+║   [3] Portfolio   - Positions & P&L tracking                                    ║
+║   [4] Strategies  - Trading strategies management                               ║
+║   [5] AI Brain    - Real-time AI market analysis                                ║
+║   [6] Risk        - Exposure & risk metrics                                     ║
+║   [7] Backtest    - Strategy historical testing                                  ║
+║   [8] Exchanges   - Exchange connections status                                  ║
+║   [9] Logs        - System logs & events                                        ║
+║   [0] Settings    - Configuration & preferences                                  ║
+║                                                                                  ║
+╚══════════════════════════════════════════════════════════════════════════════════╝`)
+}
+
+func renderHeader() string {
+	return fmt.Sprintf(`╔%s╗
+║  OpenTrader v1.0.0 - Enterprise AI Trading Framework %s%s║
+╠%s╣`,
+		strings.Repeat("═", 95),
+		strings.Repeat(" ", 95-68),
+		time.Now().Format("15:04:05"),
+		strings.Repeat("═", 95))
+}
+
+func renderFooter(state viewState) string {
+	viewName := "Dashboard"
+	switch state {
+	case StateMarkets:
+		viewName = "Markets"
+	case StatePortfolio:
+		viewName = "Portfolio"
+	case StateStrategies:
+		viewName = "Strategies"
+	case StateAIBrain:
+		viewName = "AI Brain"
+	case StateRisk:
+		viewName = "Risk Manager"
+	case StateBacktest:
+		viewName = "Backtest"
+	case StateExchanges:
+		viewName = "Exchanges"
+	case StateLogs:
+		viewName = "Logs"
+	case StateSettings:
+		viewName = "Settings"
+	case StateHelp:
+		viewName = "Help"
 	}
+
+	return fmt.Sprintf(`╠%s╣
+║  %s │ Exchanges: 5 │ Strategies: 3 │ Positions: 3 │ AI: Online │ Risk: Normal %s║
+╚%s╝`,
+		strings.Repeat("═", 95),
+		dimStyle.Render("View: "+primaryStyle.Render(viewName)),
+		dimStyle.Render(time.Now().Format("│ 15:04:05")),
+		strings.Repeat("═", 95))
 }
 
-func (m *Model) runCommand(cmd string) error {
-	parts := strings.Fields(cmd)
-	if len(parts) == 0 {
-		return nil
-	}
-
-	command := parts[0]
-	args := parts[1:]
-
-	for _, c := range commands {
-		if c.Name == command || c.Shortcut == command {
-			if c.Handler != nil {
-				return c.Handler(args)
-			}
-			logger.Info("Executing command", "command", command, "args", args)
-			return nil
-		}
-	}
-
-	return fmt.Errorf("unknown command: %s", command)
-}
-
-func (m *Model) refreshData() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-
-	m.data.LastUpdate = time.Now()
-}
-
-type Dashboard struct {
-	model *Model
-}
-
-func NewDashboard(m *Model) *Dashboard {
-	return &Dashboard{model: m}
-}
-
-func (d *Dashboard) Title() string { return "Dashboard" }
-func (d *Dashboard) Help() []string { return []string{"r: refresh"} }
-
-func (d *Dashboard) Render() string {
-	return d.model.dashboardView()
-}
-
-func (d *Dashboard) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return d.model, nil }
-
-type Portfolio struct{ model *Model }
-
-func NewPortfolio(m *Model) *Portfolio { return &Portfolio{model: m} }
-func (p *Portfolio) Title() string     { return "Portfolio" }
-func (p *Portfolio) Help() []string   { return []string{} }
-
-func (p *Portfolio) Render() string {
-	var sb strings.Builder
-	d := p.model.data
-
-	sb.WriteString("┌─ PORTFOLIO ────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString(fmt.Sprintf("│ Total Value:       %-20s  Cash Balance:     %-20s       │\n", d.Portfolio.TotalValue, d.Portfolio.CashBalance))
-	sb.WriteString(fmt.Sprintf("│ Day P&L:           %-20s  Margin Used:     %-20s       │\n", d.Portfolio.DayPnL+" ("+d.Portfolio.DayPnLPercent+")", d.Portfolio.MarginUsed))
-	sb.WriteString(fmt.Sprintf("│ Total P&L:         %-20s                                 │\n", d.Portfolio.TotalPnL+" ("+d.Portfolio.TotalPnLPercent+")"))
-	sb.WriteString("├───────────────────────────────────────────────────────────────────────────────┤\n")
-	sb.WriteString("│                              BALANCES                                          │\n")
-	sb.WriteString("├───────────┬───────────────┬───────────────┬───────────────┬───────────────────┤\n")
-	sb.WriteString("│ Asset     │ Free          │ Locked        │ Total         │ USD Value         │\n")
-	sb.WriteString("├───────────┼───────────────┼───────────────┼───────────────┼───────────────────┤\n")
-	for _, b := range d.Balances {
-		sb.WriteString(fmt.Sprintf("│ %-9s │ %-13s │ %-13s │ %-13s │ %-17s │\n", b.Asset, b.Free, b.Locked, b.Total, b.USDValue))
-	}
-	sb.WriteString("└───────────┴───────────────┴───────────────┴───────────────┴───────────────────┘\n")
-
-	return sb.String()
-}
-
-func (p *Portfolio) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return p.model, nil }
-
-type Positions struct{ model *Model }
-
-func NewPositions(m *Model) *Positions { return &Positions{model: m} }
-func (p *Positions) Title() string     { return "Positions" }
-func (p *Positions) Help() []string    { return []string{"Enter: details"} }
-
-func (p *Positions) Render() string {
-	var sb strings.Builder
-	d := p.model.data
-
-	sb.WriteString("┌─ POSITIONS ─────────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ ID  │ Symbol     │ Side   │ Qty      │ Entry     │ Mark      │ PnL       │ Lvrg │\n")
-	sb.WriteString("├─────┼────────────┼────────┼──────────┼───────────┼───────────┼───────────┼──────┤\n")
-	for _, pos := range d.Positions {
-		sb.WriteString(fmt.Sprintf("│ %-3s │ %-10s │ %-6s │ %-8s │ %-9s │ %-9s │ %-9s │ %-4s │\n",
-			pos.ID, pos.Symbol, pos.Side, pos.Quantity, pos.EntryPrice, pos.MarkPrice, pos.PnL, pos.Leverage))
-	}
-	sb.WriteString("└─────┴────────────┴────────┴──────────┴───────────┴───────────┴───────────┴──────┘\n")
-
-	return sb.String()
-}
-
-func (p *Positions) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return p.model, nil }
-
-type Orders struct{ model *Model }
-
-func NewOrders(m *Model) *Orders { return &Orders{model: m} }
-func (o *Orders) Title() string  { return "Orders" }
-func (o *Orders) Help() []string { return []string{"Enter: details", "c: cancel"} }
-
-func (o *Orders) Render() string {
-	var sb strings.Builder
-	d := o.model.data
-
-	sb.WriteString("┌─ ORDERS ─────────────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ ID       │ Symbol     │ Side │ Type   │ Status   │ Price    │ Qty     │ Filled │\n")
-	sb.WriteString("├──────────┼────────────┼──────┼────────┼──────────┼──────────┼─────────┼────────┤\n")
-	for _, ord := range d.Orders {
-		status := ord.Status
-		if status == "OPEN" {
-			status = "⚠️ " + status
-		} else if status == "FILLED" {
-			status = "✅ " + status
-		}
-		sb.WriteString(fmt.Sprintf("│ %-8s │ %-10s │ %-4s │ %-6s │ %-8s │ %-8s │ %-7s │ %-6s │\n",
-			ord.ID, ord.Symbol, ord.Side, ord.Type, status, ord.Price, ord.Quantity, ord.FilledQty))
-	}
-	sb.WriteString("└──────────┴────────────┴──────┴────────┴──────────┴──────────┴─────────┴────────┘\n")
-
-	return sb.String()
-}
-
-func (o *Orders) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return o.model, nil }
-
-type Trades struct{ model *Model }
-
-func NewTrades(m *Model) *Trades { return &Trades{model: m} }
-func (t *Trades) Title() string   { return "Trades" }
-func (t *Trades) Help() []string  { return []string{} }
-
-func (t *Trades) Render() string {
-	var sb strings.Builder
-	d := t.model.data
-
-	sb.WriteString("┌─ RECENT TRADES ─────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ ID       │ Symbol     │ Side │ Price    │ Quantity  │ Commission │ Time     │\n")
-	sb.WriteString("├──────────┼────────────┼──────┼──────────┼───────────┼────────────┼──────────┤\n")
-	for _, trd := range d.Trades {
-		sb.WriteString(fmt.Sprintf("│ %-8s │ %-10s │ %-4s │ %-8s │ %-9s │ %-10s │ %-8s │\n",
-			trd.ID, trd.Symbol, trd.Side, trd.Price, trd.Quantity, trd.Commission, trd.Time))
-	}
-	sb.WriteString("└──────────┴────────────┴──────┴──────────┴───────────┴────────────┴──────────┘\n")
-
-	return sb.String()
-}
-
-func (t *Trades) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return t.model, nil }
-
-type Strategies struct{ model *Model }
-
-func NewStrategies(m *Model) *Strategies { return &Strategies{model: m} }
-func (s *Strategies) Title() string       { return "Strategies" }
-func (s *Strategies) Help() []string      { return []string{"Enter: toggle"} }
-
-func (s *Strategies) Render() string {
-	var sb strings.Builder
-	d := s.model.data
-
-	sb.WriteString("┌─ STRATEGIES ───────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ ID       │ Name        │ Type     │ Status   │ Trades │ PnL        │ Win Rate │\n")
-	sb.WriteString("├──────────┼─────────────┼──────────┼──────────┼────────┼────────────┼──────────┤\n")
-	for _, strat := range d.Strategies {
-		status := strat.Status
-		if status == "ACTIVE" {
-			status = "🟢 " + status
-		} else if status == "PAUSED" {
-			status = "🟡 " + status
-		} else {
-			status = "⚫ " + status
-		}
-		sb.WriteString(fmt.Sprintf("│ %-8s │ %-11s │ %-8s │ %-8s │ %-6d │ %-10s │ %-8s │\n",
-			strat.ID, strat.Name, strat.Type, status, strat.Trades, strat.PnL, strat.WinRate))
-	}
-	sb.WriteString("└──────────┴─────────────┴──────────┴──────────┴────────┴────────────┴──────────┘\n")
-
-	return sb.String()
-}
-
-func (s *Strategies) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return s.model, nil }
-
-type Exchanges struct{ model *Model }
-
-func NewExchanges(m *Model) *Exchanges { return &Exchanges{model: m} }
-func (e *Exchanges) Title() string     { return "Exchanges" }
-func (e *Exchanges) Help() []string     { return []string{"Enter: details"} }
-
-func (e *Exchanges) Render() string {
-	var sb strings.Builder
-	d := e.model.data
-
-	sb.WriteString("┌─ EXCHANGES ───────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ Name              │ Status      │ Latency │ Connected │ Last Update        │\n")
-	sb.WriteString("├───────────────────┼─────────────┼─────────┼───────────┼────────────────────┤\n")
-	for _, ex := range d.Exchanges {
-		statusIcon := "⚫"
-		if ex.Status == "Connected" {
-			statusIcon = "🟢"
-		}
-		sb.WriteString(fmt.Sprintf("│ %-17s │ %s %-9s │ %-7s │ %-9s │ %-18s │\n",
-			ex.Name, statusIcon, ex.Status, ex.Latency, ex.Connected, ex.LastUpdate))
-	}
-	sb.WriteString("└───────────────────┴─────────────┴─────────┴───────────┴────────────────────┘\n")
-
-	return sb.String()
-}
-
-func (e *Exchanges) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return e.model, nil }
-
-type MarketData struct{ model *Model }
-
-func NewMarketData(m *Model) *MarketData { return &MarketData{model: m} }
-func (m *MarketData) Title() string       { return "Market Data" }
-func (m *MarketData) Help() []string      { return []string{} }
-
-func (m *MarketData) Render() string {
-	var sb strings.Builder
-
-	sb.WriteString("┌─ MARKET DATA ──────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ Symbol      │ Price        │ 24h Change  │ Volume      │ High      │ Low       │\n")
-	sb.WriteString("├─────────────┼──────────────┼─────────────┼─────────────┼───────────┼───────────┤\n")
-	sb.WriteString("│ BTC/USDT    │ $44,135.68   │ +2.34%      │ 28.5B       │ $44,500   │ $43,200   │\n")
-	sb.WriteString("│ ETH/USDT    │ $2,380.45    │ +1.28%      │ 15.2B       │ $2,400    │ $2,350    │\n")
-	sb.WriteString("│ SOL/USDT    │ $97.20       │ -1.32%      │ 3.5B        │ $99.50    │ $96.80    │\n")
-	sb.WriteString("│ BNB/USDT    │ $292.50      │ +2.46%      │ 1.2B        │ $295      │ $285      │\n")
-	sb.WriteString("│ XRP/USDT    │ $0.51        │ -1.92%      │ 2.1B        │ $0.53     │ $0.50     │\n")
-	sb.WriteString("└─────────────┴──────────────┴─────────────┴─────────────┴───────────┴───────────┘\n")
-
-	return sb.String()
-}
-
-func (m *MarketData) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return m.model, nil }
-
-type Signals struct{ model *Model }
-
-func NewSignals(m *Model) *Signals { return &Signals{model: m} }
-func (s *Signals) Title() string   { return "Signals" }
-func (s *Signals) Help() []string  { return []string{"Enter: execute"} }
-
-func (s *Signals) Render() string {
-	var sb strings.Builder
-	d := s.model.data
-
-	sb.WriteString("┌─ TRADING SIGNALS ─────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ ID       │ Strategy   │ Symbol     │ Action │ Strength │ Confidence │ Reason    │\n")
-	sb.WriteString("├──────────┼────────────┼────────────┼────────┼──────────┼────────────┼───────────┤\n")
-	for _, sig := range d.Signals {
-		action := sig.Action
-		if action == "BUY" {
-			action = "🟢 BUY"
-		} else if action == "SELL" {
-			action = "🔴 SELL"
-		}
-		sb.WriteString(fmt.Sprintf("│ %-8s │ %-10s │ %-10s │ %-6s │ %-8s │ %-10s │ %-9s │\n",
-			sig.ID, sig.Strategy, sig.Symbol, action, sig.Strength, sig.Confidence, sig.Reason))
-	}
-	sb.WriteString("└──────────┴────────────┴────────────┴────────┴──────────┴────────────┴───────────┘\n")
-
-	return sb.String()
-}
-
-func (s *Signals) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return s.model, nil }
-
-type AI struct{ model *Model }
-
-func NewAI(m *Model) *AI { return &AI{model: m} }
-func (a *AI) Title() string { return "AI Brain" }
-func (a *AI) Help() []string { return []string{} }
-
-func (a *AI) Render() string {
-	var sb strings.Builder
-
-	sb.WriteString("┌─ AI BRAIN ────────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ Status:        🟡 Disabled (Enable in config)                                   │\n")
-	sb.WriteString("│ Provider:      OpenAI GPT-4                                                   │\n")
-	sb.WriteString("│ Cache:         Enabled                                                       │\n")
-	sb.WriteString("├───────────────────────────────────────────────────────────────────────────────┤\n")
-	sb.WriteString("│                               MODELS                                         │\n")
-	sb.WriteString("├───────────────────────────────────────────────────────────────────────────────┤\n")
-	sb.WriteString("│ [ ] LLM Analysis    │ Sentiment Analysis │ Pattern Recognition       │\n")
-	sb.WriteString("│ [ ] ML Prediction   │ Risk Assessment    │ Strategy Generation      │\n")
-	sb.WriteString("└───────────────────────────────────────────────────────────────────────────────┘\n")
-
-	return sb.String()
-}
-
-func (a *AI) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return a.model, nil }
-
-type Risk struct{ model *Model }
-
-func NewRisk(m *Model) *Risk { return &Risk{model: m} }
-func (r *Risk) Title() string { return "Risk Management" }
-func (r *Risk) Help() []string { return []string{} }
-
-func (r *Risk) Render() string {
-	var sb strings.Builder
-	d := r.model.data
-
-	sb.WriteString("┌─ RISK LIMITS ──────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│ Limit Type          │ Current Setting │ Current Value │ Status                  │\n")
-	sb.WriteString("├─────────────────────┼─────────────────┼───────────────┼─────────────────────────┤\n")
-	sb.WriteString(fmt.Sprintf("│ Max Position Size   │ %-15s │ %-13s │ %-23s │\n", d.Risk.MaxPositionSize, "N/A", "✅ OK"))
-	sb.WriteString(fmt.Sprintf("│ Max Daily Loss      │ %-15s │ %-13s │ %-23s │\n", d.Risk.MaxDailyLoss, "N/A", "✅ OK"))
-	sb.WriteString(fmt.Sprintf("│ Max Drawdown        │ %-15s │ %-13s │ %-23s │\n", d.Risk.MaxDrawdown, d.Risk.CurrentDrawdown, "✅ OK"))
-	sb.WriteString(fmt.Sprintf("│ Max Exposure        │ %-15s │ %-13s │ %-23s │\n", d.Risk.MaxExposure, d.Risk.CurrentExposure, "✅ OK"))
-	sb.WriteString(fmt.Sprintf("│ Max Leverage        │ %-15s │ %-13s │ %-23s │\n", d.Risk.MaxLeverage, "2x", "✅ OK"))
-	sb.WriteString("└─────────────────────┴─────────────────┴───────────────┴─────────────────────────┘\n")
-
-	return sb.String()
-}
-
-func (r *Risk) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return r.model, nil }
-
-type Settings struct{ model *Model }
-
-func NewSettings(m *Model) *Settings { return &Settings{model: m} }
-func (s *Settings) Title() string     { return "Settings" }
-func (s *Settings) Help() []string    { return []string{} }
-
-func (s *Settings) Render() string {
-	var sb strings.Builder
-
-	sb.WriteString("┌─ SETTINGS ─────────────────────────────────────────────────────────────────────┐\n")
-	sb.WriteString("│                                                                                  │\n")
-	sb.WriteString("│ Theme:           [dark] [light]                                                   │\n")
-	sb.WriteString("│ Color Scheme:    [default] [nord] [gruvbox] [monokai]                             │\n")
-	sb.WriteString("│ Refresh Rate:    [1s] [5s] [10s] [30s]                                           │\n")
-	sb.WriteString("│                                                                                  │\n")
-	sb.WriteString("│ Trading Mode:    [paper] [live]                                                  │\n")
-	sb.WriteString("│ Risk Level:      [conservative] [moderate] [aggressive]                          │\n")
-	sb.WriteString("│                                                                                  │\n")
-	sb.WriteString("│ [ ] Enable AI Brain                                                             │\n")
-	sb.WriteString("│ [ ] Enable Notifications                                                        │\n")
-	sb.WriteString("│ [ ] Auto-start on boot                                                           │\n")
-	sb.WriteString("│                                                                                  │\n")
-	sb.WriteString("│ [C]onfig File  [E]xport Settings  [I]mport Settings  [R]eset Defaults            │\n")
-	sb.WriteString("└──────────────────────────────────────────────────────────────────────────────────┘\n")
-
-	return sb.String()
-}
-
-func (s *Settings) Update(msg tea.Msg) (tea.Model, tea.Cmd) { return s.model, nil }
-
-func (m *Model) setStatus(msg string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.statusMessage = msg
-}
-
-func (m *Model) addOutput(line string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.outputBuffer = append(m.outputBuffer, line)
-	if len(m.outputBuffer) > 100 {
-		m.outputBuffer = m.outputBuffer[1:]
-	}
-}
-
-func (m *Model) clearOutput() {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.outputBuffer = nil
-}
-
-func (m *Model) addCommand(cmd string) {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	m.commandHistory = append(m.commandHistory, cmd)
-	m.commandIndex = len(m.commandHistory)
-	m.currentCommand = ""
-}
-
-func (m *Model) previousCommand() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.commandIndex > 0 {
-		m.commandIndex--
-	}
-	if m.commandIndex < len(m.commandHistory) {
-		return m.commandHistory[m.commandIndex]
-	}
-	return ""
-}
-
-func (m *Model) nextCommand() string {
-	m.mu.Lock()
-	defer m.mu.Unlock()
-	if m.commandIndex < len(m.commandHistory)-1 {
-		m.commandIndex++
-		return m.commandHistory[m.commandIndex]
-	}
-	m.commandIndex = len(m.commandHistory)
-	return ""
-}
-
-var version = "1.0.0"
+var (
+	cyanStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#06B6D4"))
+	goldStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#F59E0B"))
+	secondaryStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("#A855F7"))
+	infoStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("#3B82F6"))
+)

@@ -147,11 +147,13 @@ func newRunCommand() *cobra.Command {
 func newInteractiveCommand() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "interactive",
+		Aliases: []string{"tui", "ui"},
 		Short: "Launch interactive TUI",
-		Long:  `Start the OpenTrader terminal UI with command palette`,
+		Long:  `Start the OpenTrader terminal UI with all features`,
 		Example: `
   opentreder interactive
-  opentreder interactive --theme dark
+  opentreder tui
+  opentreder tui --theme dark
 `,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			ui := tui.NewApp()
