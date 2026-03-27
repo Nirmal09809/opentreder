@@ -1,0 +1,99 @@
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: opentreder-monitor
+  namespace: opentreder
+  labels:
+    app: opentreder
+    release: prometheus
+spec:
+  selector:
+    matchLabels:
+      app: opentreder
+  endpoints:
+    - port: rest
+      path: /metrics
+      interval: 15s
+      scrapeTimeout: 10s
+    - port: grpc
+      path: /metrics
+      interval: 30s
+  namespaceSelector:
+    matchNames:
+      - opentreder
+
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: opentreder-alerts
+  namespace: opentreder
+  labels:
+    app: opentreder
+    release: prometheus
+spec:
+  groups:
+    - name: opentreder.rules
+      rules:
+        - alert: OpenTraderDown
+          expr: up{job="opentreder"} == 0
+          for: 1m
+          labels:
+            severity: critical
+          annotations:
+            summary: "OpenTrader is down"
+            description: "OpenTrader pod has been down for more than 1 minute"
+        
+        - alert: HighMemoryUsage
+          expr: (container_memory_usage_bytes{pod=~"opentreder.*"} / container_spec_memory_limit_bytes{pod=~"opentreder.*"}) > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High memory usage on OpenTrader"
+            description: "Memory usage is above 85% for more than 5 minutes"
+        
+        - alert: HighCPUUsage
+          expr: (rate(container_cpu_usage_seconds_total{pod=~"opentreder.*"}[5m]) / on(container, pod) group_left() container_spec_cpu_quota{pod=~"opentreder.*"} / container_spec_cpu_period{pod=~"opentreder.*"}) > 0.85
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High CPU usage on OpenTrader"
+            description: "CPU usage is above 85% for more than 5 minutes"
+        
+        - alert: TooManyRestarts
+          expr: increase(kube_pod_container_status_restarts_total{pod=~"opentreder.*"}[1h]) > 3
+          for: 1m
+          labels:
+            severity: warning
+          annotations:
+            summary: "OpenTrader pod is restarting frequently"
+            description: "Pod has restarted more than 3 times in the last hour"
+        
+        - alert: TradingPositionRiskHigh
+          expr: opentreder_position_risk_ratio > 0.8
+          for: 2m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High trading position risk"
+            description: "Position risk ratio has exceeded 80%"
+
+        - alert: APIHighLatency
+          expr: histogram_quantile(0.95, rate(opentreder_http_request_duration_seconds_bucket[5m])) > 2
+          for: 5m
+          labels:
+            severity: warning
+          annotations:
+            summary: "High API latency"
+            description: "95th percentile latency is above 2 seconds"
+        
+        - alert: ErrorRateHigh
+          expr: rate(opentreder_http_requests_total{status=~"5.."}[5m]) > 0.01
+          for: 5m
+          labels:
+            severity: critical
+          annotations:
+            summary: "High error rate"
+            description: "HTTP 5xx error rate is above 1%"

@@ -38,6 +38,10 @@
 - 🌀 **Momentum Trading** - RSI + MACD combination
 - 🔗 **Pairs Trading** - Statistical arbitrage
 - ⚖️ **Arbitrage** - Cross-exchange price differences
+- ⏱️ **TWAP** - Time-Weighted Average Price execution
+- 📊 **VWAP** - Volume-Weighted Average Price execution
+- 🔒 **Bracket Orders** - Entry + Stop Loss + Take Profit
+- 🦅 **Trailing Stop** - Dynamic stop loss following price
 
 ### 📉 Technical Indicators (30+)
 SMA, EMA, RSI, MACD, Bollinger Bands, ATR, Stochastic, ADX, OBV, CCI, VWAP, Ichimoku, Fibonacci, Pivot Points, SuperTrend, Keltner Channels, Alligator, MFI, WPR, CMF, STOCHRSI, Parabolic SAR, Aroon, TRIX, Momentum, ROC, and more...
@@ -129,12 +133,11 @@ docker-compose logs -f opentreder
 
 | Document | Description |
 |----------|-------------|
-| [Getting Started](docs/getting-started.md) | Quick start guide |
+| [Architecture](docs/architecture/architecture.md) | System architecture guide |
+| [API Reference](docs/api/openapi.yaml) | REST & gRPC API documentation (OpenAPI 3.0) |
+| [Deployment Guide](docs/architecture/deployment.md) | Kubernetes & Helm deployment |
+| [Strategy Development](docs/development/strategy-development.md) | Custom strategy creation |
 | [Configuration](docs/configuration.md) | Full configuration reference |
-| [API Reference](docs/api.md) | REST & gRPC API documentation |
-| [Strategies](docs/strategies.md) | Trading strategy guide |
-| [AI & ML](docs/ai-ml.md) | Machine learning integration |
-| [Deployment](DEPLOYMENT.md) | Production deployment guide |
 | [Contributing](CONTRIBUTING.md) | Contribution guidelines |
 
 ---
@@ -237,9 +240,12 @@ risk:
 
 ```bash
 # Run unit tests
-make test
+go test ./tests/unit/...
 
-# Run with coverage
+# Run integration tests
+go test -tags=integration ./tests/integration/...
+
+# Run all tests with coverage
 make test-coverage
 
 # Run benchmarks
@@ -254,15 +260,21 @@ make bench
 
 ```bash
 kubectl create namespace opentreder
-kubectl apply -f deploy/kubernetes/
+kubectl apply -f deploy/k8s/base/
 ```
 
 ### Helm
 
 ```bash
-helm install opentreder ./deploy/helm \
+helm install opentreder ./deploy/helm/opentreder \
   --namespace opentreder \
   --create-namespace
+```
+
+### Docker Compose (Development)
+
+```bash
+docker-compose up -d
 ```
 
 ---
@@ -270,16 +282,17 @@ helm install opentreder ./deploy/helm \
 ## 📊 Monitoring
 
 ### Prometheus Metrics
-Access at `http://localhost:9090/metrics`
+Access at `http://localhost:8080/metrics`
 
 ### Grafana Dashboard
-Import `deploy/monitoring/grafana_dashboard.json`
+Included in Helm chart - auto-configured
 
 ### Key Metrics
-- `http_requests_total` - Total HTTP requests
-- `orders_total` - Total orders placed
-- `portfolio_value` - Current portfolio value
-- `portfolio_pnl` - Profit & Loss
+- `opentreder_http_requests_total` - Total HTTP requests
+- `opentreder_orders_total` - Total orders placed
+- `opentreder_portfolio_value` - Current portfolio value
+- `opentreder_portfolio_pnl` - Profit & Loss
+- `opentreder_position_risk_ratio` - Position risk metrics
 
 ---
 

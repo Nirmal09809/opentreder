@@ -1,0 +1,55 @@
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: opentreder-ingress
+  namespace: opentreder
+  labels:
+    app: opentreder
+  annotations:
+    kubernetes.io/ingress.class: nginx
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/proxy-body-size: "10m"
+    nginx.ingress.kubernetes.io/proxy-read-timeout: "300"
+    nginx.ingress.kubernetes.io/proxy-send-timeout: "300"
+    nginx.ingress.kubernetes.io/websocket-services: "opentreder-service"
+    nginx.ingress.kubernetes.io/upstream-hash-by: "$remote_addr"
+    cert-manager.io/cluster-issuer: "letsencrypt-prod"
+    prometheus.io/scrape: "true"
+spec:
+  tls:
+    - hosts:
+        - api.opentreder.example.com
+        - ws.opentreder.example.com
+        - app.opentreder.example.com
+      secretName: opentreder-tls
+  rules:
+    - host: api.opentreder.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opentreder-service
+                port:
+                  number: 8080
+    - host: ws.opentreder.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opentreder-service
+                port:
+                  number: 8081
+    - host: app.opentreder.example.com
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: opentreder-service
+                port:
+                  number: 8082

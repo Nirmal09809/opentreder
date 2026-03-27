@@ -1,0 +1,85 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: opentreder-service
+  namespace: opentreder
+  labels:
+    app: opentreder
+    service: opentreder
+  annotations:
+    prometheus.io/scrape: "true"
+    prometheus.io/port: "8080"
+spec:
+  type: ClusterIP
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+    - name: websocket
+      port: 8081
+      targetPort: 8081
+      protocol: TCP
+    - name: grpc
+      port: 9090
+      targetPort: 9090
+      protocol: TCP
+    - name: ui
+      port: 8082
+      targetPort: 8082
+      protocol: TCP
+  selector:
+    app: opentreder
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres-service
+  namespace: opentreder
+  labels:
+    app: opentreder
+    tier: database
+spec:
+  type: ClusterIP
+  ports:
+    - port: 5432
+      targetPort: 5432
+      protocol: TCP
+  selector:
+    app: postgresql
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-service
+  namespace: opentreder
+  labels:
+    app: opentreder
+    tier: cache
+spec:
+  type: ClusterIP
+  ports:
+    - port: 6379
+      targetPort: 6379
+      protocol: TCP
+  selector:
+    app: redis
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: opentreder-headless
+  namespace: opentreder
+  labels:
+    app: opentreder
+spec:
+  clusterIP: None
+  ports:
+    - name: rest
+      port: 8080
+      targetPort: 8080
+  selector:
+    app: opentreder
